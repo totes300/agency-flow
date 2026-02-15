@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { requireAdmin, requireAuth, isAdmin } from "./lib/permissions";
 import { taskStatus } from "./schema";
 
@@ -460,7 +461,7 @@ export const create = mutation({
     parentTaskId: v.optional(v.id("tasks")),
   },
   handler: async (ctx, args) => {
-    await requireAuth(ctx);
+    const user = await requireAuth(ctx);
 
     const trimmedTitle = args.title.trim();
     if (!trimmedTitle) throw new Error("Task title cannot be empty");
@@ -481,7 +482,7 @@ export const create = mutation({
       projectId = parent.projectId;
     }
 
-    return await ctx.db.insert("tasks", {
+    const taskId = await ctx.db.insert("tasks", {
       title: trimmedTitle,
       projectId,
       parentTaskId: args.parentTaskId,
@@ -490,6 +491,14 @@ export const create = mutation({
       billable: true, // constraint #19
       isArchived: false,
     });
+
+    await ctx.runMutation(internal.activityLog.log, {
+      taskId,
+      userId: user._id,
+      action: "created task",
+    });
+
+    return taskId;
   },
 });
 
@@ -563,6 +572,21 @@ export const update = mutation({
     }
 
     await ctx.db.patch(id, patch);
+
+    if (patch.assigneeIds) {
+      await ctx.runMutation(internal.activityLog.log, {
+        taskId: id,
+        userId: user._id,
+        action: "updated assignees",
+      });
+    }
+    if (patch.projectId !== undefined) {
+      await ctx.runMutation(internal.activityLog.log, {
+        taskId: id,
+        userId: user._id,
+        action: "changed project",
+      });
+    }
   },
 });
 
@@ -590,6 +614,12 @@ export const updateStatus = mutation({
     }
 
     await ctx.db.patch(id, { status });
+
+    await ctx.runMutation(internal.activityLog.log, {
+      taskId: id,
+      userId: user._id,
+      action: `changed status ${task.status} → ${status}`,
+    });
   },
 });
 
@@ -639,6 +669,12 @@ export const archive = mutation({
     }
 
     await ctx.db.patch(id, { isArchived: true });
+
+    await ctx.runMutation(internal.activityLog.log, {
+      taskId: id,
+      userId: user._id,
+      action: "archived task",
+    });
 
     // Cascade to subtasks
     const subtasks = await ctx.db
