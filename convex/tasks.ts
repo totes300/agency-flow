@@ -100,8 +100,8 @@ export const get = query({
 
     // Assignees
     const assignees = await Promise.all(
-      task.assigneeIds.map(async (uid: any) => {
-        const u = await ctx.db.get(uid);
+      task.assigneeIds.map(async (uid) => {
+        const u = await ctx.db.query("users").filter((q) => q.eq(q.field("_id"), uid)).first();
         return u ? { _id: u._id, name: u.name, avatarUrl: u.avatarUrl } : null;
       }),
     );

@@ -371,7 +371,7 @@ returns: { _id, name, avatarUrl, role }[]
 
 ---
 
-### Subtask 3.5: Task list page — basic table shell
+### Subtask 3.5: Task list page — basic table shell ✅
 **Files modified:** `app/(dashboard)/tasks/page.tsx`
 **Files created:** `components/task-list-table.tsx`
 **Depends on:** 3.0, 3.2
@@ -387,7 +387,7 @@ returns: { _id, name, avatarUrl, role }[]
 
 ---
 
-### Subtask 3.6: Inline task creation
+### Subtask 3.6: Inline task creation ✅
 **Files modified:** `components/task-list-table.tsx`, `app/(dashboard)/tasks/page.tsx`
 **Depends on:** 3.5
 **What:**
@@ -400,7 +400,7 @@ returns: { _id, name, avatarUrl, role }[]
 
 ---
 
-### Subtask 3.7: Inline editing — status, project, assignees, work category
+### Subtask 3.7: Inline editing — status, project, assignees, work category ✅
 **Files created:** `components/task-status-select.tsx`, `components/task-project-selector.tsx`, `components/task-assignee-picker.tsx`, `components/task-category-select.tsx`
 **Files modified:** `components/task-list-table.tsx`
 **Depends on:** 3.5, 3.1
