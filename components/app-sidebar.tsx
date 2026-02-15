@@ -25,6 +25,7 @@ import {
   CalendarIcon,
   FileTextIcon,
   UserCogIcon,
+  SettingsIcon,
   ZapIcon,
 } from "lucide-react"
 
@@ -40,6 +41,7 @@ const adminNav = [
   { title: "Daily Summary", url: "/daily-summary", icon: <CalendarIcon /> },
   { title: "Timesheets", url: "/timesheets", icon: <FileTextIcon /> },
   { title: "Team", url: "/team", icon: <UserCogIcon /> },
+  { title: "Settings", url: "/settings", icon: <SettingsIcon /> },
 ]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {

@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation, query } from "./_generated/server";
+import { requireAuth } from "./lib/permissions";
 import { userRole } from "./schema";
 
 /**
@@ -63,6 +64,19 @@ export const deleteFromClerk = internalMutation({
         isAnonymized: true,
       });
     }
+  },
+});
+
+/**
+ * List all active (non-anonymized) users.
+ * Used for assignee pickers, default assignee setup, etc.
+ */
+export const listAll = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireAuth(ctx);
+    const all = await ctx.db.query("users").collect();
+    return all.filter((u) => !u.isAnonymized);
   },
 });
 

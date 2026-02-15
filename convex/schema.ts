@@ -56,6 +56,8 @@ export default defineSchema({
   // ── Clients ────────────────────────────────────────────────────────
   clients: defineTable({
     name: v.string(),
+    contactName: v.optional(v.string()),
+    contactEmail: v.optional(v.string()),
     currency: v.string(), // ISO 4217 code: EUR, USD, HUF, etc.
     isArchived: v.boolean(),
   }).index("by_isArchived", ["isArchived"]),
@@ -70,8 +72,28 @@ export default defineSchema({
     retainerStatus: v.optional(retainerStatus),
     includedHoursPerMonth: v.optional(v.number()), // stored as minutes
     overageRate: v.optional(v.number()),
+    startDate: v.optional(v.string()), // YYYY-MM-DD, for retainers
     // T&M-specific fields
-    hourlyRate: v.optional(v.number()),
+    hourlyRate: v.optional(v.number()), // single flat rate
+    tmCategoryRates: v.optional(
+      v.array(
+        v.object({
+          workCategoryId: v.id("workCategories"),
+          rate: v.number(),
+        }),
+      ),
+    ),
+    // T&M: date of last invoice (YYYY-MM-DD), set manually by admin
+    lastInvoicedAt: v.optional(v.string()),
+    // Default assignees per work category (UC-2.5)
+    defaultAssignees: v.optional(
+      v.array(
+        v.object({
+          workCategoryId: v.id("workCategories"),
+          userId: v.id("users"),
+        }),
+      ),
+    ),
   })
     .index("by_clientId", ["clientId"])
     .index("by_isArchived", ["isArchived"])
@@ -81,6 +103,9 @@ export default defineSchema({
   workCategories: defineTable({
     name: v.string(),
     isArchived: v.boolean(),
+    defaultUserId: v.optional(v.id("users")),
+    defaultCostRate: v.optional(v.number()),
+    defaultBillRate: v.optional(v.number()),
   }),
 
   // ── Project Category Estimates (Fixed projects) ────────────────────
@@ -190,6 +215,11 @@ export default defineSchema({
   })
     .index("by_projectId", ["projectId"])
     .index("by_projectId_periodStart", ["projectId", "periodStart"]),
+
+  // ── Workspace Settings (singleton) ─────────────────────────────────
+  workspaceSettings: defineTable({
+    defaultHourlyRate: v.optional(v.number()),
+  }),
 
   // ── Today Order (per-user task ordering) ───────────────────────────
   todayOrder: defineTable({

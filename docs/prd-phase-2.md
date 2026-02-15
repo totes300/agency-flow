@@ -49,16 +49,16 @@ Admin can toggle a retainer's status. When inactive: not shown in project select
 
 ## Acceptance Criteria
 
-- [ ] Admin can CRUD clients with all fields including currency
-- [ ] Client archive cascades correctly (projects, tasks, timers) with 5-second undo toast
-- [ ] All three project types can be created with correct type-specific fields
-- [ ] Fixed project category estimates reference global work categories
-- [ ] Default assignees per work category can be set on projects (workCategoryId → userId mappings)
-- [ ] Project detail views adapt by type with correct data
-- [ ] Retainer active/inactive toggle works with correct behavior
-- [ ] First retainer usage period lazy-created on first access
-- [ ] All monetary values display in client's currency
-- [ ] Admin can manage global work categories (add, rename, archive)
-- [ ] Work categories seeded with defaults on first setup
-- [ ] Empty state shown on client list when no clients exist ("Create your first client to get started" with CTA)
-- [ ] Empty state shown on project list when a client has no projects
+- [x] Admin can CRUD clients with all fields including currency
+- [x] Client archive cascades correctly (projects, tasks, timers) with 5-second undo toast
+- [x] All three project types can be created with correct type-specific fields
+- [x] Fixed project category estimates reference global work categories
+- [x] Default assignees per work category can be set on projects (workCategoryId → userId mappings)
+- [x] Project detail views adapt by type with correct data
+- [x] Retainer active/inactive toggle works with correct behavior
+- [x] First retainer usage period lazy-created on first access
+- [x] All monetary values display in client's currency
+- [x] Admin can manage global work categories (add, rename, archive)
+- [x] Work categories seeded with defaults on first setup
+- [x] Empty state shown on client list when no clients exist ("Create your first client to get started" with CTA)
+- [x] Empty state shown on project list when a client has no projects

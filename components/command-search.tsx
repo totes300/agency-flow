@@ -83,7 +83,7 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
               {tasks.map((task) => (
                 <CommandItem
                   key={task._id}
-                  onSelect={() => navigate("/tasks")}
+                  onSelect={() => navigate(`/tasks`)}
                 >
                   <CheckSquareIcon />
                   <span>{task.title}</span>
@@ -104,7 +104,7 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
               {clients.map((client) => (
                 <CommandItem
                   key={client._id}
-                  onSelect={() => navigate("/clients")}
+                  onSelect={() => navigate(`/clients/${client._id}`)}
                 >
                   <UsersIcon />
                   <span>{client.name}</span>
@@ -120,7 +120,7 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
               {projects.map((project) => (
                 <CommandItem
                   key={project._id}
-                  onSelect={() => navigate("/projects")}
+                  onSelect={() => navigate(`/projects/${project._id}`)}
                 >
                   <FolderIcon />
                   <span>{project.name}</span>

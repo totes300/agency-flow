@@ -14,16 +14,25 @@ export function formatDuration(minutes: number): string {
 /**
  * Format a currency amount using Intl.NumberFormat.
  * Per CLAUDE.md formatting rule #1.
+ * Formatters are cached by currency+locale key to avoid re-creating Intl.NumberFormat on every call.
  */
+const currencyFormatterCache = new Map<string, Intl.NumberFormat>();
+
 export function formatCurrency(
   amount: number,
   currencyCode: string,
   locale?: string,
 ): string {
-  return new Intl.NumberFormat(locale ?? undefined, {
-    style: "currency",
-    currency: currencyCode,
-  }).format(amount);
+  const key = `${locale ?? "default"}:${currencyCode}`;
+  let formatter = currencyFormatterCache.get(key);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale ?? undefined, {
+      style: "currency",
+      currency: currencyCode,
+    });
+    currencyFormatterCache.set(key, formatter);
+  }
+  return formatter.format(amount);
 }
 
 /**
