@@ -12,6 +12,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { SearchIcon } from "lucide-react"
 import { useState } from "react"
+import { TimerIndicator } from "@/components/timer-indicator"
 
 const CommandSearch = dynamic(() =>
   import("@/components/command-search").then((m) => ({ default: m.CommandSearch }))
@@ -38,8 +39,7 @@ export default function DashboardLayout({
               />
             </div>
             <div className="flex items-center gap-2">
-              {/* Timer indicator placeholder — wired in Phase 4 */}
-              <div id="timer-indicator" />
+              <TimerIndicator />
               <Button
                 variant="outline"
                 size="sm"
