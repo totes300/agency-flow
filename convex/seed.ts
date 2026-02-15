@@ -1,6 +1,29 @@
 import { internalMutation } from "./_generated/server";
 
 /**
+ * Clear all seeded data (clients, projects, tasks, comments, time entries, etc.)
+ * Run via: npx convex run --no-push seed:clearAll
+ */
+export const clearAll = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const tables = [
+      "comments", "timeEntries", "attachments", "activityLogEntries",
+      "retainerPeriods", "projectCategoryEstimates", "tasks", "projects", "clients",
+    ] as const;
+    let total = 0;
+    for (const table of tables) {
+      const rows = await ctx.db.query(table as any).collect();
+      for (const row of rows) {
+        await ctx.db.delete(row._id);
+      }
+      total += rows.length;
+    }
+    return { deleted: total };
+  },
+});
+
+/**
  * Seed test data: 2 clients, 3 projects, ~12 tasks with varied statuses/categories.
  * Run via: npx convex run --no-push seed:seedTestData
  * Safe to run multiple times — skips if clients already exist.
@@ -97,8 +120,9 @@ export const seedTestData = internalMutation({
       { title: "Project kickoff meeting notes", projectId: appId, status: "done", catName: "PM", assignSelf: true },
     ];
 
+    const taskIds: any[] = [];
     for (const t of taskDefs) {
-      await ctx.db.insert("tasks", {
+      const id = await ctx.db.insert("tasks", {
         title: t.title,
         projectId: t.projectId,
         status: t.status,
@@ -107,8 +131,86 @@ export const seedTestData = internalMutation({
         billable: true,
         isArchived: false,
       });
+      taskIds.push(id);
     }
 
-    return { clients: 2, projects: 3, tasks: taskDefs.length };
+    // ── Descriptions (on a few tasks) ──────────────────────────────
+    // Tiptap JSON format — simple paragraph nodes
+    const makeDesc = (text: string) => ({
+      type: "doc",
+      content: [{ type: "paragraph", content: [{ type: "text", text }] }],
+    });
+
+    await ctx.db.patch(taskIds[0], {
+      description: makeDesc(
+        "Create a high-fidelity mockup for the homepage following the approved wireframes. Key sections: hero banner, feature grid, testimonials carousel, and footer with newsletter signup. Use the brand color palette and Figma component library.",
+      ),
+    });
+    await ctx.db.patch(taskIds[1], {
+      description: makeDesc(
+        "Build the responsive layout using CSS Grid + Flexbox. Must support desktop (1440px), tablet (768px), and mobile (375px) breakpoints. Reference the Figma responsive specs.",
+      ),
+    });
+    await ctx.db.patch(taskIds[8], {
+      description: makeDesc(
+        "Implement OAuth 2.0 + JWT authentication flow with Clerk. Includes sign-up, sign-in, password reset, and session management. Follow the security checklist in Notion.",
+      ),
+    });
+
+    // ── Comments (on a few tasks) ──────────────────────────────────
+    if (assignee) {
+      await ctx.db.insert("comments", {
+        taskId: taskIds[0],
+        userId: assignee._id,
+        content: makeDesc("Updated the layout based on client feedback from yesterday's call. Moving the CTA above the fold."),
+        mentionedUserIds: [],
+      });
+      await ctx.db.insert("comments", {
+        taskId: taskIds[0],
+        userId: assignee._id,
+        content: makeDesc("Added the revised color scheme. Ready for review."),
+        mentionedUserIds: [],
+      });
+      await ctx.db.insert("comments", {
+        taskId: taskIds[0],
+        userId: assignee._id,
+        content: makeDesc("Client approved the final version. Moving to development."),
+        mentionedUserIds: [],
+      });
+      await ctx.db.insert("comments", {
+        taskId: taskIds[8],
+        userId: assignee._id,
+        content: makeDesc("Started implementing the Clerk integration. JWT template is set up."),
+        mentionedUserIds: [],
+      });
+    }
+
+    // ── Subtasks (on "Design homepage mockup" and "Implement auth flow") ──
+    const subtaskDefs = [
+      { parentId: taskIds[0], title: "Create wireframe sketch", status: "done" as const },
+      { parentId: taskIds[0], title: "Design hero section", status: "done" as const },
+      { parentId: taskIds[0], title: "Design feature grid", status: "today" as const },
+      { parentId: taskIds[0], title: "Design testimonials section", status: "inbox" as const },
+      { parentId: taskIds[0], title: "Design footer", status: "inbox" as const },
+      { parentId: taskIds[8], title: "Set up Clerk provider", status: "done" as const },
+      { parentId: taskIds[8], title: "Implement sign-in page", status: "done" as const },
+      { parentId: taskIds[8], title: "Implement sign-up page", status: "today" as const },
+      { parentId: taskIds[8], title: "Add session management", status: "inbox" as const },
+    ];
+
+    for (const st of subtaskDefs) {
+      const parentTask = await ctx.db.get(st.parentId);
+      await ctx.db.insert("tasks", {
+        title: st.title,
+        parentTaskId: st.parentId,
+        projectId: parentTask!.projectId,
+        status: st.status,
+        assigneeIds: assignee ? [assignee._id] : [],
+        billable: true,
+        isArchived: false,
+      });
+    }
+
+    return { clients: 2, projects: 3, tasks: taskDefs.length, subtasks: subtaskDefs.length };
   },
 });

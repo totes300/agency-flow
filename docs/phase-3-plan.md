@@ -454,7 +454,7 @@ returns: { _id, name, avatarUrl, role }[]
 
 ---
 
-### Subtask 3.11: Indicator icons + hover popovers
+### Subtask 3.11: Indicator icons + hover popovers ✅
 **Files created:** `components/task-indicators.tsx`, `components/task-subtask-popover.tsx`, `components/task-comment-popover.tsx`, `components/task-description-popover.tsx`
 **Files modified:** `components/task-list-table.tsx`
 **Depends on:** 3.5, 3.2
@@ -467,7 +467,7 @@ returns: { _id, name, avatarUrl, role }[]
 
 ---
 
-### Subtask 3.12: Bulk actions UI
+### Subtask 3.12: Bulk actions UI ✅
 **Files created:** `components/task-bulk-bar.tsx`
 **Files modified:** `components/task-list-table.tsx`, `app/(dashboard)/tasks/page.tsx`
 **Depends on:** 3.4, 3.5

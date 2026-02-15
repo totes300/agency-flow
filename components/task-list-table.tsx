@@ -17,17 +17,20 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { PlusIcon, LoaderIcon, ChevronRightIcon } from "lucide-react"
-import { TaskStatusSelect, TaskStatusBadge } from "@/components/task-status-select"
+import { TaskStatusSelect } from "@/components/task-status-select"
 import { TaskProjectSelector } from "@/components/task-project-selector"
 import { TaskAssigneePicker } from "@/components/task-assignee-picker"
 import { TaskCategorySelect } from "@/components/task-category-select"
 import { TaskActionsMenu } from "@/components/task-actions-menu"
+import { TaskIndicators } from "@/components/task-indicators"
+import { TaskBulkBar } from "@/components/task-bulk-bar"
 import type { GroupByOption } from "@/components/task-filters"
 
 // Use permissive types to avoid mismatches with Convex generated types
@@ -106,7 +109,8 @@ const STATUS_LABELS: Record<string, string> = {
   done: "Done",
 }
 
-const COL_COUNT = 7
+const MAX_BULK_SELECT = 50
+const COL_COUNT = 8
 
 export function TaskListTable({
   data,
@@ -127,6 +131,7 @@ export function TaskListTable({
   const [isCreating, setIsCreating] = useState(false)
   const [showCreateRow, setShowCreateRow] = useState(false)
   const [createGroupKey, setCreateGroupKey] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const inputRef = useRef<HTMLInputElement>(null)
   const createTask = useMutation(api.tasks.create)
 
@@ -194,6 +199,39 @@ export function TaskListTable({
   const isGrouped = groupBy !== "none"
   const isEmpty = tasks.length === 0
 
+  // Selection handlers
+  const toggleSelect = useCallback((taskId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(taskId)) {
+        next.delete(taskId)
+      } else if (next.size < MAX_BULK_SELECT) {
+        next.add(taskId)
+      }
+      return next
+    })
+  }, [])
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      const taskIds = tasks.map((t) => t._id as string)
+      const allSelected = taskIds.length > 0 && taskIds.every((id) => prev.has(id))
+      if (allSelected) {
+        return new Set()
+      }
+      // Select all up to MAX_BULK_SELECT
+      return new Set(taskIds.slice(0, MAX_BULK_SELECT))
+    })
+  }, [tasks])
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set())
+  }, [])
+
+  const allTaskIds = tasks.map((t) => t._id as string)
+  const allSelected = allTaskIds.length > 0 && allTaskIds.every((id) => selectedIds.has(id))
+  const someSelected = allTaskIds.some((id) => selectedIds.has(id))
+
   // Loading state
   if (isLoading) {
     return (
@@ -252,6 +290,29 @@ export function TaskListTable({
     </TableRow>
   )
 
+  const tableHeaders = (showSelectAll: boolean) => (
+    <TableHeader>
+      <TableRow>
+        <TableHead className="w-10">
+          {showSelectAll && (
+            <Checkbox
+              checked={allSelected ? true : someSelected ? "indeterminate" : false}
+              onCheckedChange={toggleSelectAll}
+              aria-label="Select all tasks"
+            />
+          )}
+        </TableHead>
+        <TableHead className="w-[35%]">Task</TableHead>
+        <TableHead>Project</TableHead>
+        <TableHead>Assignees</TableHead>
+        <TableHead>Status</TableHead>
+        <TableHead>Category</TableHead>
+        <TableHead className="text-right">Time</TableHead>
+        <TableHead className="w-10" />
+      </TableRow>
+    </TableHeader>
+  )
+
   return (
     <div className="space-y-4">
       {isGrouped ? (
@@ -261,6 +322,8 @@ export function TaskListTable({
               key={group.key}
               group={group}
               isAdmin={isAdmin}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
               onCreateInGroup={() => openCreateRow(group.key)}
               creationRow={
                 showCreateRow && createGroupKey === group.key
@@ -281,20 +344,16 @@ export function TaskListTable({
       ) : (
         <div className="rounded-md border">
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[40%]">Task</TableHead>
-                <TableHead>Project</TableHead>
-                <TableHead>Assignees</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead className="text-right">Time</TableHead>
-                <TableHead className="w-10" />
-              </TableRow>
-            </TableHeader>
+            {tableHeaders(true)}
             <TableBody>
               {tasks.map((task) => (
-                <TaskRow key={task._id} task={task} isAdmin={isAdmin} />
+                <TaskRow
+                  key={task._id}
+                  task={task}
+                  isAdmin={isAdmin}
+                  isSelected={selectedIds.has(task._id)}
+                  onToggleSelect={toggleSelect}
+                />
               ))}
               {inlineCreationRow}
             </TableBody>
@@ -331,6 +390,13 @@ export function TaskListTable({
           </Button>
         )}
       </div>
+
+      {/* Bulk actions floating bar */}
+      <TaskBulkBar
+        selectedIds={[...selectedIds] as Id<"tasks">[]}
+        isAdmin={isAdmin}
+        onClearSelection={clearSelection}
+      />
     </div>
   )
 }
@@ -338,11 +404,15 @@ export function TaskListTable({
 function GroupSection({
   group,
   isAdmin,
+  selectedIds,
+  onToggleSelect,
   onCreateInGroup,
   creationRow,
 }: {
   group: TaskGroup
   isAdmin: boolean
+  selectedIds: Set<string>
+  onToggleSelect: (taskId: string) => void
   onCreateInGroup: () => void
   creationRow: React.ReactNode
 }) {
@@ -369,7 +439,8 @@ function GroupSection({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[40%]">Task</TableHead>
+                <TableHead className="w-10" />
+                <TableHead className="w-[35%]">Task</TableHead>
                 <TableHead>Project</TableHead>
                 <TableHead>Assignees</TableHead>
                 <TableHead>Status</TableHead>
@@ -380,7 +451,13 @@ function GroupSection({
             </TableHeader>
             <TableBody>
               {group.tasks.map((task) => (
-                <TaskRow key={task._id} task={task} isAdmin={isAdmin} />
+                <TaskRow
+                  key={task._id}
+                  task={task}
+                  isAdmin={isAdmin}
+                  isSelected={selectedIds.has(task._id)}
+                  onToggleSelect={onToggleSelect}
+                />
               ))}
               {creationRow}
             </TableBody>
@@ -402,12 +479,37 @@ function GroupSection({
   )
 }
 
-function TaskRow({ task, isAdmin }: { task: EnrichedTask; isAdmin: boolean }) {
+function TaskRow({
+  task,
+  isAdmin,
+  isSelected,
+  onToggleSelect,
+}: {
+  task: EnrichedTask
+  isAdmin: boolean
+  isSelected: boolean
+  onToggleSelect: (taskId: string) => void
+}) {
   return (
-    <TableRow className="group">
-      {/* Title */}
+    <TableRow className="group" data-selected={isSelected || undefined}>
+      {/* Checkbox */}
+      <TableCell className="w-10">
+        <div className="flex items-center justify-center opacity-0 group-hover:opacity-100 group-data-[selected]:opacity-100 md:transition-opacity">
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={() => onToggleSelect(task._id)}
+            onClick={(e) => e.stopPropagation()}
+            aria-label={`Select "${task.title}"`}
+          />
+        </div>
+      </TableCell>
+
+      {/* Title + indicators */}
       <TableCell className="font-medium">
-        <span className="line-clamp-1">{task.title}</span>
+        <div className="flex items-center min-w-0">
+          <span className="line-clamp-1 shrink">{task.title}</span>
+          <TaskIndicators task={task} />
+        </div>
       </TableCell>
 
       {/* Project */}
