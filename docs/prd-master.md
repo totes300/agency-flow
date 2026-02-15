@@ -78,9 +78,9 @@ Client CRUD, project creation (all three types with type-specific fields), proje
 **Done when**: Admin can manage clients and create all project types.
 
 ### Phase 3: Task Management
-Task list with inline creation, filtering/grouping, project selector, multi-assign with auto-suggest, statuses, task actions, bulk operations (multi-select + status/assignee/archive).
+Task list with inline creation, full inline editing (all metadata editable in table row — Notion/Coda table feel), filtering/grouping, project selector, multi-assign with auto-suggest, statuses, hover preview popovers (subtasks, comments, description), task actions, bulk operations (multi-select + status/assignee/archive).
 
-**Done when**: Full task list experience works with filters, grouping, inline editing, and bulk actions.
+**Done when**: Full task list experience works with inline editing, filters, grouping, hover previews, and bulk actions.
 
 ### Phase 4: Task Detail & Time Tracking
 Task detail modal, rich text descriptions, subtasks, file attachments, timer, Add Time component, time entries list, activity log, comments with @mentions.

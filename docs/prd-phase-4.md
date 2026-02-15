@@ -49,7 +49,7 @@ Time can be added from two places, both using the same "Add Time" component. **T
 **From the task list:** Clicking the time cell on a task row opens a popover with the Add Time component.
 **From the task detail:** An inline Add Time form in the time tracking section.
 
-The Add Time component shows: preset duration chips (15m, 30m, 1h, 1.5h, 2h) plus a free-text duration input (accepts `1h 30m`, `1.5h`, `90m`, `1:30`), a date field (collapsed by default showing "today," expandable to a date picker for past entries), and an optional note. Submitting creates a time entry. Multiple entries per day per task allowed.
+The Add Time component shows: preset duration chips (15m, 30m, 45m, 1h) plus a +/− hour stepper for longer durations (each click adds/removes 1 hour from the current value), a free-text duration input (accepts `1h 30m`, `1.5h`, `90m`, `1:30`), a date field (collapsed by default showing "today," expandable to a date picker for past entries), and an optional note. Submitting creates a time entry. Multiple entries per day per task allowed.
 
 **UC-4.6: View and Edit Time Entries**
 Task detail shows time entries (newest first, paginated — default 50, "load more"). Each shows: duration, date, team member, note. Users can edit/delete their own entries; admins can edit/delete any. Editing recalculates task total (and parent rollup for subtasks).
