@@ -136,8 +136,8 @@ function TasksPageInner() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Tasks</h1>
-        <p className="text-muted-foreground mt-1">
+        <h1 className="text-xl md:text-2xl font-semibold tracking-tight">Tasks</h1>
+        <p className="text-muted-foreground mt-1 text-sm md:text-base">
           Manage all tasks across projects.
         </p>
       </div>

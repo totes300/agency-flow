@@ -481,8 +481,8 @@ returns: { _id, name, avatarUrl, role }[]
 
 ---
 
-### Subtask 3.13: Mobile responsive pass
-**Files modified:** `components/task-list-table.tsx`, `app/(dashboard)/tasks/page.tsx`
+### Subtask 3.13: Mobile responsive pass ✅
+**Files modified:** `components/task-list-table.tsx`, `app/(dashboard)/tasks/page.tsx`, `components/task-actions-menu.tsx`, `components/task-bulk-bar.tsx`
 **Depends on:** 3.5–3.12
 **What:**
 - Card layout on mobile instead of table

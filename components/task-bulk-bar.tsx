@@ -106,18 +106,18 @@ export function TaskBulkBar({
   }
 
   return (
-    <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2">
-      <div className="flex items-center gap-2 rounded-lg border bg-background px-4 py-2.5 shadow-lg">
+    <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 w-[calc(100%-2rem)] max-w-lg md:w-auto md:max-w-none">
+      <div className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2 shadow-lg overflow-x-auto md:px-4 md:py-2.5">
         <span className="text-sm font-medium whitespace-nowrap">
           {count} selected
         </span>
 
-        <div className="h-5 w-px bg-border" />
+        <div className="h-5 w-px bg-border shrink-0" />
 
         {/* Status picker */}
         <Popover open={statusOpen} onOpenChange={setStatusOpen}>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1">
+            <Button variant="outline" size="sm" className="gap-1 shrink-0">
               Status
               <ChevronDownIcon className="size-3.5" />
             </Button>
@@ -150,7 +150,7 @@ export function TaskBulkBar({
         {/* Assignee picker */}
         <Popover open={assigneeOpen} onOpenChange={setAssigneeOpen}>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1">
+            <Button variant="outline" size="sm" className="gap-1 shrink-0">
               Assignee
               <ChevronDownIcon className="size-3.5" />
             </Button>
@@ -185,12 +185,12 @@ export function TaskBulkBar({
         </Popover>
 
         {/* Archive */}
-        <Button variant="outline" size="sm" className="gap-1" onClick={handleArchive}>
+        <Button variant="outline" size="sm" className="gap-1 shrink-0" onClick={handleArchive}>
           <ArchiveIcon className="size-3.5" />
           Archive
         </Button>
 
-        <div className="h-5 w-px bg-border" />
+        <div className="h-5 w-px bg-border shrink-0" />
 
         {/* Dismiss */}
         <Button

@@ -58,11 +58,13 @@ export function TaskActionsMenu({
   taskTitle,
   isAdmin,
   hasTimeEntries,
+  alwaysVisible = false,
 }: {
   taskId: Id<"tasks">
   taskTitle: string
   isAdmin: boolean
   hasTimeEntries: boolean
+  alwaysVisible?: boolean
 }) {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [moveOpen, setMoveOpen] = useState(false)
@@ -129,7 +131,7 @@ export function TaskActionsMenu({
           <Button
             variant="ghost"
             size="icon"
-            className="size-8 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
+            className={`size-8 ${alwaysVisible ? "" : "opacity-0 group-hover:opacity-100"} data-[state=open]:opacity-100`}
             onClick={(e) => e.stopPropagation()}
           >
             <MoreHorizontalIcon className="size-4" />

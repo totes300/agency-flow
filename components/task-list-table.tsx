@@ -14,6 +14,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,9 +30,9 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { PlusIcon, LoaderIcon, ChevronRightIcon } from "lucide-react"
-import { TaskStatusSelect } from "@/components/task-status-select"
+import { TaskStatusSelect, TaskStatusBadge } from "@/components/task-status-select"
 import { TaskProjectSelector } from "@/components/task-project-selector"
-import { TaskAssigneePicker } from "@/components/task-assignee-picker"
+import { TaskAssigneePicker, TaskAssigneeAvatars } from "@/components/task-assignee-picker"
 import { TaskCategorySelect } from "@/components/task-category-select"
 import { TaskActionsMenu } from "@/components/task-actions-menu"
 import { TaskIndicators } from "@/components/task-indicators"
@@ -130,9 +136,11 @@ export function TaskListTable({
   const [creatingTitle, setCreatingTitle] = useState("")
   const [isCreating, setIsCreating] = useState(false)
   const [showCreateRow, setShowCreateRow] = useState(false)
+  const [showMobileCreateDialog, setShowMobileCreateDialog] = useState(false)
   const [createGroupKey, setCreateGroupKey] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const inputRef = useRef<HTMLInputElement>(null)
+  const mobileInputRef = useRef<HTMLInputElement>(null)
   const createTask = useMutation(api.tasks.create)
 
   // Use ref to read title at call time
@@ -163,6 +171,7 @@ export function TaskListTable({
 
       await createTask(args)
       setCreatingTitle("")
+      setShowMobileCreateDialog(false)
       inputRef.current?.focus()
     } catch (err: unknown) {
       toast.error((err as Error).message)
@@ -179,6 +188,7 @@ export function TaskListTable({
       } else if (e.key === "Escape") {
         setCreatingTitle("")
         setShowCreateRow(false)
+        setShowMobileCreateDialog(false)
         setCreateGroupKey(null)
       }
     },
@@ -193,6 +203,12 @@ export function TaskListTable({
     },
     [],
   )
+
+  const openMobileCreate = useCallback(() => {
+    setCreatingTitle("")
+    setShowMobileCreateDialog(true)
+    setTimeout(() => mobileInputRef.current?.focus(), 100)
+  }, [])
 
   const tasks = data?.page ?? []
   const groups = useMemo(() => groupTasks(tasks, groupBy), [tasks, groupBy])
@@ -232,15 +248,26 @@ export function TaskListTable({
   const allSelected = allTaskIds.length > 0 && allTaskIds.every((id) => selectedIds.has(id))
   const someSelected = allTaskIds.some((id) => selectedIds.has(id))
 
+  const hasSelection = selectedIds.size > 0
+
   // Loading state
   if (isLoading) {
     return (
       <div className="space-y-2">
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
+        {/* Desktop skeleton */}
+        <div className="hidden md:block space-y-2">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+        </div>
+        {/* Mobile skeleton */}
+        <div className="md:hidden space-y-2">
+          <Skeleton className="h-24 w-full rounded-lg" />
+          <Skeleton className="h-24 w-full rounded-lg" />
+          <Skeleton className="h-24 w-full rounded-lg" />
+        </div>
       </div>
     )
   }
@@ -248,16 +275,34 @@ export function TaskListTable({
   // Empty state
   if (isEmpty && !showCreateRow) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center">
-        <h3 className="text-lg font-medium">No tasks yet</h3>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Create your first task to get started.
-        </p>
-        <Button className="mt-4" onClick={() => openCreateRow()}>
-          <PlusIcon className="mr-2 size-4" />
-          Create Your First Task
-        </Button>
-      </div>
+      <>
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center">
+          <h3 className="text-lg font-medium">No tasks yet</h3>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Create your first task to get started.
+          </p>
+          {/* Desktop: inline button */}
+          <Button className="mt-4 hidden md:inline-flex" onClick={() => openCreateRow()}>
+            <PlusIcon className="mr-2 size-4" />
+            Create Your First Task
+          </Button>
+          {/* Mobile: button that opens dialog */}
+          <Button className="mt-4 md:hidden" onClick={openMobileCreate}>
+            <PlusIcon className="mr-2 size-4" />
+            Create Your First Task
+          </Button>
+        </div>
+        <MobileCreateDialog
+          open={showMobileCreateDialog}
+          onOpenChange={setShowMobileCreateDialog}
+          title={creatingTitle}
+          onTitleChange={setCreatingTitle}
+          onKeyDown={handleCreateKeyDown}
+          onCreate={handleCreate}
+          isCreating={isCreating}
+          inputRef={mobileInputRef}
+        />
+      </>
     )
   }
 
@@ -315,62 +360,98 @@ export function TaskListTable({
 
   return (
     <div className="space-y-4">
-      {isGrouped ? (
-        <div className="space-y-3">
-          {groups.map((group) => (
-            <GroupSection
-              key={group.key}
-              group={group}
-              isAdmin={isAdmin}
-              selectedIds={selectedIds}
-              onToggleSelect={toggleSelect}
-              onCreateInGroup={() => openCreateRow(group.key)}
-              creationRow={
-                showCreateRow && createGroupKey === group.key
-                  ? inlineCreationRow
-                  : null
-              }
-            />
-          ))}
-          {/* Global create if not inside a group */}
-          {showCreateRow && !createGroupKey && (
-            <div className="rounded-md border">
-              <Table>
-                <TableBody>{inlineCreationRow}</TableBody>
-              </Table>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="rounded-md border">
-          <Table>
-            {tableHeaders(true)}
-            <TableBody>
-              {tasks.map((task) => (
-                <TaskRow
-                  key={task._id}
-                  task={task}
-                  isAdmin={isAdmin}
-                  isSelected={selectedIds.has(task._id)}
-                  onToggleSelect={toggleSelect}
-                />
-              ))}
-              {inlineCreationRow}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+      {/* ── Desktop: Table layout ── */}
+      <div className="hidden md:block">
+        {isGrouped ? (
+          <div className="space-y-3">
+            {groups.map((group) => (
+              <GroupSection
+                key={group.key}
+                group={group}
+                isAdmin={isAdmin}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelect}
+                onCreateInGroup={() => openCreateRow(group.key)}
+                creationRow={
+                  showCreateRow && createGroupKey === group.key
+                    ? inlineCreationRow
+                    : null
+                }
+              />
+            ))}
+            {showCreateRow && !createGroupKey && (
+              <div className="rounded-md border">
+                <Table>
+                  <TableBody>{inlineCreationRow}</TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="rounded-md border">
+            <Table>
+              {tableHeaders(true)}
+              <TableBody>
+                {tasks.map((task) => (
+                  <TaskRow
+                    key={task._id}
+                    task={task}
+                    isAdmin={isAdmin}
+                    isSelected={selectedIds.has(task._id)}
+                    onToggleSelect={toggleSelect}
+                  />
+                ))}
+                {inlineCreationRow}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
+
+      {/* ── Mobile: Card layout ── */}
+      <div className="md:hidden">
+        {isGrouped ? (
+          <div className="space-y-3">
+            {groups.map((group) => (
+              <MobileGroupSection
+                key={group.key}
+                group={group}
+                isAdmin={isAdmin}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelect}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {tasks.map((task) => (
+              <TaskCard
+                key={task._id}
+                task={task}
+                isAdmin={isAdmin}
+                isSelected={selectedIds.has(task._id)}
+                onToggleSelect={toggleSelect}
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Bottom area: add button + load more */}
       <div className="flex items-center justify-between">
-        {!showCreateRow ? (
-          <Button variant="ghost" size="sm" onClick={() => openCreateRow()}>
-            <PlusIcon className="mr-2 size-4" />
-            New Task
-          </Button>
-        ) : (
-          <div />
-        )}
+        {/* Desktop: inline "New Task" button */}
+        <div className="hidden md:block">
+          {!showCreateRow ? (
+            <Button variant="ghost" size="sm" onClick={() => openCreateRow()}>
+              <PlusIcon className="mr-2 size-4" />
+              New Task
+            </Button>
+          ) : (
+            <div />
+          )}
+        </div>
+        {/* Mobile: spacer (FAB handles creation) */}
+        <div className="md:hidden" />
 
         {data && !data.isDone && (
           <Button
@@ -391,6 +472,28 @@ export function TaskListTable({
         )}
       </div>
 
+      {/* Mobile FAB for task creation */}
+      <Button
+        className="fixed bottom-6 right-6 z-40 size-14 rounded-full shadow-lg md:hidden"
+        onClick={openMobileCreate}
+        aria-label="Create new task"
+        style={{ marginBottom: hasSelection ? "4rem" : 0 }}
+      >
+        <PlusIcon className="size-6" />
+      </Button>
+
+      {/* Mobile create dialog */}
+      <MobileCreateDialog
+        open={showMobileCreateDialog}
+        onOpenChange={setShowMobileCreateDialog}
+        title={creatingTitle}
+        onTitleChange={setCreatingTitle}
+        onKeyDown={handleCreateKeyDown}
+        onCreate={handleCreate}
+        isCreating={isCreating}
+        inputRef={mobileInputRef}
+      />
+
       {/* Bulk actions floating bar */}
       <TaskBulkBar
         selectedIds={[...selectedIds] as Id<"tasks">[]}
@@ -400,6 +503,61 @@ export function TaskListTable({
     </div>
   )
 }
+
+// ── Mobile Create Dialog ────────────────────────────────────────────────
+
+function MobileCreateDialog({
+  open,
+  onOpenChange,
+  title,
+  onTitleChange,
+  onKeyDown,
+  onCreate,
+  isCreating,
+  inputRef,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  title: string
+  onTitleChange: (v: string) => void
+  onKeyDown: (e: KeyboardEvent<HTMLInputElement>) => void
+  onCreate: () => void
+  isCreating: boolean
+  inputRef: React.RefObject<HTMLInputElement | null>
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>New Task</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-3 pt-2">
+          <Input
+            ref={inputRef}
+            placeholder="Task name..."
+            value={title}
+            onChange={(e) => onTitleChange(e.target.value)}
+            onKeyDown={onKeyDown}
+            disabled={isCreating}
+            autoFocus
+          />
+          <Button onClick={onCreate} disabled={isCreating || !title.trim()}>
+            {isCreating ? (
+              <>
+                <LoaderIcon className="mr-2 size-4 animate-spin" />
+                Creating...
+              </>
+            ) : (
+              "Create Task"
+            )}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── Desktop: Group Section ──────────────────────────────────────────────
 
 function GroupSection({
   group,
@@ -479,6 +637,58 @@ function GroupSection({
   )
 }
 
+// ── Mobile: Group Section ───────────────────────────────────────────────
+
+function MobileGroupSection({
+  group,
+  isAdmin,
+  selectedIds,
+  onToggleSelect,
+}: {
+  group: TaskGroup
+  isAdmin: boolean
+  selectedIds: Set<string>
+  onToggleSelect: (taskId: string) => void
+}) {
+  const [isOpen, setIsOpen] = useState(true)
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <div className="rounded-lg border">
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-muted/50"
+          >
+            <ChevronRightIcon
+              className={`size-4 shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`}
+            />
+            <span className="font-medium text-sm">{group.label}</span>
+            <span className="text-muted-foreground text-xs">
+              {group.tasks.length}
+            </span>
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="space-y-2 px-2 pb-2">
+            {group.tasks.map((task) => (
+              <TaskCard
+                key={task._id}
+                task={task}
+                isAdmin={isAdmin}
+                isSelected={selectedIds.has(task._id)}
+                onToggleSelect={onToggleSelect}
+              />
+            ))}
+          </div>
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
+  )
+}
+
+// ── Desktop: Table Row ──────────────────────────────────────────────────
+
 function TaskRow({
   task,
   isAdmin,
@@ -494,7 +704,7 @@ function TaskRow({
     <TableRow className="group" data-selected={isSelected || undefined}>
       {/* Checkbox */}
       <TableCell className="w-10">
-        <div className="flex items-center justify-center opacity-0 group-hover:opacity-100 group-data-[selected]:opacity-100 md:transition-opacity">
+        <div className="flex items-center justify-center opacity-0 group-hover:opacity-100 group-data-[selected]:opacity-100 transition-opacity">
           <Checkbox
             checked={isSelected}
             onCheckedChange={() => onToggleSelect(task._id)}
@@ -567,5 +777,80 @@ function TaskRow({
         />
       </TableCell>
     </TableRow>
+  )
+}
+
+// ── Mobile: Task Card ───────────────────────────────────────────────────
+
+function TaskCard({
+  task,
+  isAdmin,
+  isSelected,
+  onToggleSelect,
+}: {
+  task: EnrichedTask
+  isAdmin: boolean
+  isSelected: boolean
+  onToggleSelect: (taskId: string) => void
+}) {
+  return (
+    <div
+      className="rounded-lg border bg-card p-3 space-y-2"
+      data-selected={isSelected || undefined}
+    >
+      {/* Row 1: Checkbox + Title + Indicators */}
+      <div className="flex items-start gap-2">
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={() => onToggleSelect(task._id)}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Select "${task.title}"`}
+          className="mt-0.5 shrink-0"
+        />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1 min-w-0">
+            <span className="font-medium text-sm line-clamp-2 break-words">
+              {task.title}
+            </span>
+            <TaskIndicators task={task} />
+          </div>
+        </div>
+        <TaskActionsMenu
+          taskId={task._id as Id<"tasks">}
+          taskTitle={task.title}
+          isAdmin={isAdmin}
+          hasTimeEntries={task.totalMinutes > 0}
+          alwaysVisible
+        />
+      </div>
+
+      {/* Row 2: Project / Client */}
+      {(task.clientName || task.projectName) && (
+        <p className="text-xs text-muted-foreground truncate pl-6">
+          {task.clientName}{task.clientName && task.projectName ? " → " : ""}{task.projectName}
+        </p>
+      )}
+
+      {/* Row 3: Status + Assignees + Category + Time */}
+      <div className="flex flex-wrap items-center gap-2 pl-6">
+        <TaskStatusBadge status={task.status} />
+
+        {task.assignees?.length > 0 && (
+          <TaskAssigneeAvatars assignees={task.assignees} />
+        )}
+
+        {task.workCategoryName && (
+          <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+            {task.workCategoryName}
+          </span>
+        )}
+
+        {task.totalMinutes > 0 && (
+          <span className="text-xs text-muted-foreground ml-auto">
+            {formatDuration(task.totalMinutes)}
+          </span>
+        )}
+      </div>
+    </div>
   )
 }
