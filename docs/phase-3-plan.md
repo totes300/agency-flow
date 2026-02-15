@@ -415,7 +415,7 @@ returns: { _id, name, avatarUrl, role }[]
 
 ---
 
-### Subtask 3.8: Task row actions (overflow menu)
+### Subtask 3.8: Task row actions (overflow menu) ✅
 **Files created:** `components/task-actions-menu.tsx`
 **Files modified:** `components/task-list-table.tsx`
 **Depends on:** 3.3, 3.5
@@ -427,8 +427,8 @@ returns: { _id, name, avatarUrl, role }[]
 
 ---
 
-### Subtask 3.9: Filter bar + URL persistence
-**Files created:** `components/task-filters.tsx`, `components/task-filter-drawer.tsx`
+### Subtask 3.9: Filter bar + URL persistence ✅
+**Files created:** `components/task-filters.tsx` (includes mobile filter drawer)
 **Files modified:** `app/(dashboard)/tasks/page.tsx`
 **Depends on:** 3.5
 **What:**
@@ -442,7 +442,7 @@ returns: { _id, name, avatarUrl, role }[]
 
 ---
 
-### Subtask 3.10: Grouping
+### Subtask 3.10: Grouping ✅
 **Files modified:** `components/task-list-table.tsx`, `app/(dashboard)/tasks/page.tsx`
 **Depends on:** 3.9
 **What:**

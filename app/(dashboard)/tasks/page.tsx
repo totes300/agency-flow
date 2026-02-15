@@ -1,26 +1,58 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useMemo, Suspense } from "react"
 import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
+import { Id } from "@/convex/_generated/dataModel"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TaskListTable } from "@/components/task-list-table"
+import { TaskFilterBar, useTaskFilters } from "@/components/task-filters"
+import type { GroupByOption } from "@/components/task-filters"
 
-export default function TasksPage() {
+function TasksPageInner() {
   const me = useQuery(api.users.getMe)
   const [cursor, setCursor] = useState<string | undefined>(undefined)
   const [allPages, setAllPages] = useState<any[][]>([])
   const [isLoadingMore, setIsLoadingMore] = useState(false)
 
+  const { filters, groupBy, setFilter, setFilters, setGroupBy, clearAll, hasFilters } =
+    useTaskFilters()
+
   const isAdmin = me?.role === "admin"
 
+  // Build Convex filter args from URL params
+  const convexFilters = useMemo(() => {
+    const f: Record<string, any> = {}
+    if (filters.clientId) f.clientId = filters.clientId as Id<"clients">
+    if (filters.projectId) f.projectId = filters.projectId as Id<"projects">
+    if (filters.assigneeId) f.assigneeId = filters.assigneeId as Id<"users">
+    if (filters.status) f.status = filters.status
+    if (filters.dateFrom) f.dateFrom = filters.dateFrom
+    if (filters.dateTo) f.dateTo = filters.dateTo
+    return Object.keys(f).length > 0 ? f : undefined
+  }, [filters])
+
   // First page
-  const firstPage = useQuery(api.tasks.list, me ? {} : "skip")
+  const firstPage = useQuery(
+    api.tasks.list,
+    me
+      ? {
+          filters: convexFilters,
+          groupBy: groupBy !== "none" ? groupBy : undefined,
+        }
+      : "skip",
+  )
 
   // Additional pages (loaded on demand via cursor)
   const nextPage = useQuery(
     api.tasks.list,
-    cursor ? { paginationOpts: { cursor } } : "skip",
+    cursor
+      ? {
+          paginationOpts: { cursor },
+          filters: convexFilters,
+          groupBy: groupBy !== "none" ? groupBy : undefined,
+        }
+      : "skip",
   )
 
   // Merge all pages
@@ -57,8 +89,42 @@ export default function TasksPage() {
     setIsLoadingMore(false)
   }, [mergedData, nextPage])
 
-  // Loading state for user
-  if (me === undefined) {
+  // Reset pagination when filters change
+  const handleFilterChange = useCallback(
+    (key: string, value: string | undefined) => {
+      setCursor(undefined)
+      setAllPages([])
+      setFilter(key, value)
+    },
+    [setFilter],
+  )
+
+  const handleFiltersChange = useCallback(
+    (updates: Record<string, string | undefined>) => {
+      setCursor(undefined)
+      setAllPages([])
+      setFilters(updates)
+    },
+    [setFilters],
+  )
+
+  const handleGroupByChange = useCallback(
+    (value: GroupByOption) => {
+      setCursor(undefined)
+      setAllPages([])
+      setGroupBy(value)
+    },
+    [setGroupBy],
+  )
+
+  const handleClearAll = useCallback(() => {
+    setCursor(undefined)
+    setAllPages([])
+    clearAll()
+  }, [clearAll])
+
+  // Wait for authenticated user before rendering anything
+  if (!me) {
     return (
       <div className="space-y-2">
         <Skeleton className="h-8 w-48" />
@@ -68,7 +134,7 @@ export default function TasksPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Tasks</h1>
         <p className="text-muted-foreground mt-1">
@@ -76,13 +142,39 @@ export default function TasksPage() {
         </p>
       </div>
 
+      <TaskFilterBar
+        filters={filters}
+        groupBy={groupBy}
+        onFilterChange={handleFilterChange}
+        onFiltersChange={handleFiltersChange}
+        onGroupByChange={handleGroupByChange}
+        onClearAll={handleClearAll}
+        hasFilters={hasFilters}
+      />
+
       <TaskListTable
         data={mergedData}
-        isLoading={firstPage === undefined && me !== undefined}
+        isLoading={firstPage === undefined}
         isAdmin={isAdmin}
         onLoadMore={handleLoadMore}
         isLoadingMore={isLoadingMore}
+        groupBy={groupBy}
       />
     </div>
+  )
+}
+
+export default function TasksPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-4 w-72" />
+        </div>
+      }
+    >
+      <TasksPageInner />
+    </Suspense>
   )
 }
