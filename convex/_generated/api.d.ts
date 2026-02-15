@@ -14,6 +14,7 @@ import type * as lib_permissions from "../lib/permissions.js";
 import type * as projects from "../projects.js";
 import type * as retainerPeriods from "../retainerPeriods.js";
 import type * as search from "../search.js";
+import type * as seed from "../seed.js";
 import type * as tasks from "../tasks.js";
 import type * as users from "../users.js";
 import type * as workCategories from "../workCategories.js";
@@ -32,6 +33,7 @@ declare const fullApi: ApiFromModules<{
   projects: typeof projects;
   retainerPeriods: typeof retainerPeriods;
   search: typeof search;
+  seed: typeof seed;
   tasks: typeof tasks;
   users: typeof users;
   workCategories: typeof workCategories;
