@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
 import { toast } from "sonner"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useDebouncedSave } from "@/hooks/use-debounced-save"
 import { formatDuration, formatDistanceToNow } from "@/lib/format"
 import {
   Dialog,
@@ -28,6 +29,11 @@ import { XIcon, ClockIcon, ActivityIcon } from "lucide-react"
 import { TaskDetailMetadata } from "@/components/task-detail-metadata"
 import { TaskDetailSubtasks } from "@/components/task-detail-subtasks"
 import { TaskProjectSelector } from "@/components/task-project-selector"
+import { TiptapEditor } from "@/components/tiptap-editor"
+import { TimerButton } from "@/components/timer-button"
+import { TaskDetailAttachments } from "@/components/task-detail-attachments"
+import { AddTimeForm } from "@/components/add-time-form"
+import { TaskDetailComments } from "@/components/task-detail-comments"
 
 export function TaskDetailDialog({
   taskId,
@@ -42,6 +48,7 @@ export function TaskDetailDialog({
   const task = useQuery(api.tasks.get, taskId ? { id: taskId } : "skip")
   const me = useQuery(api.users.getMe)
   const updateTask = useMutation(api.tasks.update)
+  const updateDescription = useMutation(api.tasks.updateDescription)
 
   const [title, setTitle] = useState("")
   const titleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -88,12 +95,26 @@ export function TaskDetailDialog({
     }
   }, [taskId, title, task?.title, updateTask])
 
+  const debouncedSaveDescription = useDebouncedSave(
+    useCallback(
+      async (json: any) => {
+        if (!taskId) return
+        try {
+          await updateDescription({ id: taskId, description: json })
+        } catch (err: unknown) {
+          toast.error((err as Error).message)
+        }
+      },
+      [taskId, updateDescription],
+    ),
+  )
+
   if (isMobile) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent side="bottom" className="h-[95dvh] p-0" showCloseButton={false}>
           <SheetTitle className="sr-only">Task Detail</SheetTitle>
-          {task ? (
+          {task && me ? (
             <>
               <MobileHeader task={task} />
               <ScrollArea className="h-[calc(95dvh-44px)]">
@@ -104,6 +125,8 @@ export function TaskDetailDialog({
                     title={title}
                     onTitleChange={handleTitleChange}
                     onTitleBlur={handleTitleBlur}
+                    onDescriptionUpdate={debouncedSaveDescription}
+                    currentUserId={me._id as Id<"users">}
                   />
                 </div>
               </ScrollArea>
@@ -137,13 +160,15 @@ export function TaskDetailDialog({
 
         {/* ── Two-column body ── */}
         <div className="flex-1 flex overflow-hidden">
-          {task ? (
+          {task && me ? (
             <DesktopContent
               task={task}
               isAdmin={isAdmin}
               title={title}
               onTitleChange={handleTitleChange}
               onTitleBlur={handleTitleBlur}
+              onDescriptionUpdate={debouncedSaveDescription}
+              currentUserId={me._id as Id<"users">}
             />
           ) : (
             <TaskDetailSkeleton />
@@ -243,12 +268,16 @@ function DesktopContent({
   title,
   onTitleChange,
   onTitleBlur,
+  onDescriptionUpdate,
+  currentUserId,
 }: {
   task: Record<string, any>
   isAdmin: boolean
   title: string
   onTitleChange: (value: string) => void
   onTitleBlur: () => void
+  onDescriptionUpdate: (json: any) => void
+  currentUserId: Id<"users">
 }) {
   const totalMinutes = (task.totalMinutes ?? 0) + (task.subtaskTotalMinutes ?? 0)
   const estimate = task.estimate ?? 0
@@ -260,20 +289,29 @@ function DesktopContent({
       <ScrollArea className="flex-[13] border-r">
         <div className="p-5 space-y-4">
 
-          {/* Title + metadata — tighter grouping */}
+          {/* Title + timer + metadata — tighter grouping */}
           <div className="space-y-1">
-            <AutoResizeTitle
-              value={title}
-              onChange={onTitleChange}
-              onBlur={onTitleBlur}
-            />
+            <div className="flex items-start gap-2">
+              <TimerButton
+                taskId={task._id as Id<"tasks">}
+                taskTitle={task.title}
+                hasProject={!!task.projectId}
+              />
+              <AutoResizeTitle
+                value={title}
+                onChange={onTitleChange}
+                onBlur={onTitleBlur}
+              />
+            </div>
             <TaskDetailMetadata task={task} isAdmin={isAdmin} />
           </div>
 
-          {/* Description — no heading, editor is self-evident */}
-          <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground min-h-[100px]">
-            Rich text editor — wired in Session 5
-          </div>
+          {/* Description — Tiptap editor */}
+          <TiptapEditor
+            content={task.description ?? null}
+            onUpdate={onDescriptionUpdate}
+            placeholder="Add a description…"
+          />
 
           {/* Subtasks */}
           <TaskDetailSubtasks
@@ -283,19 +321,19 @@ function DesktopContent({
           />
 
           {/* Files */}
-          <div>
-            <h3 className="text-xs font-medium text-muted-foreground mb-2">Files</h3>
-            <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-              Attachments — wired in Session 5
-            </div>
-          </div>
+          <TaskDetailAttachments
+            taskId={task._id as Id<"tasks">}
+            isAdmin={isAdmin}
+            currentUserId={currentUserId}
+          />
 
           {/* Add Time */}
           <div>
             <h3 className="text-xs font-medium text-muted-foreground mb-2">Add Time</h3>
-            <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-              Add Time form — wired in Session 5
-            </div>
+            <AddTimeForm
+              taskId={task._id as Id<"tasks">}
+              hasProject={!!task.projectId}
+            />
           </div>
 
           {/* Time Entries */}
@@ -345,9 +383,11 @@ function DesktopContent({
           <TabsContent value="comments" className="flex-1 mt-0 min-h-0">
             <ScrollArea className="h-full">
               <div className="p-5">
-                <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                  Comments — wired in Session 5
-                </div>
+                <TaskDetailComments
+                  taskId={task._id as Id<"tasks">}
+                  isAdmin={isAdmin}
+                  currentUserId={currentUserId}
+                />
               </div>
             </ScrollArea>
           </TabsContent>
@@ -365,12 +405,16 @@ function MobileContent({
   title,
   onTitleChange,
   onTitleBlur,
+  onDescriptionUpdate,
+  currentUserId,
 }: {
   task: Record<string, any>
   isAdmin: boolean
   title: string
   onTitleChange: (value: string) => void
   onTitleBlur: () => void
+  onDescriptionUpdate: (json: any) => void
+  currentUserId: Id<"users">
 }) {
   const totalMinutes = (task.totalMinutes ?? 0) + (task.subtaskTotalMinutes ?? 0)
   const estimate = task.estimate ?? 0
@@ -378,12 +422,19 @@ function MobileContent({
 
   return (
     <div className="space-y-4">
-      {/* Title */}
-      <AutoResizeTitle
-        value={title}
-        onChange={onTitleChange}
-        onBlur={onTitleBlur}
-      />
+      {/* Title + timer */}
+      <div className="flex items-start gap-2">
+        <TimerButton
+          taskId={task._id as Id<"tasks">}
+          taskTitle={task.title}
+          hasProject={!!task.projectId}
+        />
+        <AutoResizeTitle
+          value={title}
+          onChange={onTitleChange}
+          onBlur={onTitleBlur}
+        />
+      </div>
 
       {/* Properties */}
       <TaskDetailMetadata task={task} isAdmin={isAdmin} />
@@ -399,10 +450,12 @@ function MobileContent({
         </div>
       )}
 
-      {/* Description */}
-      <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground min-h-[80px]">
-        Rich text editor — wired in Session 5
-      </div>
+      {/* Description — Tiptap editor */}
+      <TiptapEditor
+        content={task.description ?? null}
+        onUpdate={onDescriptionUpdate}
+        placeholder="Add a description…"
+      />
 
       {/* Subtasks */}
       <TaskDetailSubtasks
@@ -412,19 +465,19 @@ function MobileContent({
       />
 
       {/* Files */}
-      <div>
-        <h3 className="text-xs font-medium text-muted-foreground mb-2">Files</h3>
-        <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-          Attachments — wired in Session 5
-        </div>
-      </div>
+      <TaskDetailAttachments
+        taskId={task._id as Id<"tasks">}
+        isAdmin={isAdmin}
+        currentUserId={currentUserId}
+      />
 
       {/* Add Time */}
       <div>
         <h3 className="text-xs font-medium text-muted-foreground mb-2">Add Time</h3>
-        <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-          Add Time form — wired in Session 5
-        </div>
+        <AddTimeForm
+          taskId={task._id as Id<"tasks">}
+          hasProject={!!task.projectId}
+        />
       </div>
 
       {/* Time Entries */}
@@ -447,9 +500,11 @@ function MobileContent({
           </div>
         </TabsContent>
         <TabsContent value="comments" className="mt-3">
-          <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-            Comments — wired in Session 5
-          </div>
+          <TaskDetailComments
+            taskId={task._id as Id<"tasks">}
+            isAdmin={isAdmin}
+            currentUserId={currentUserId}
+          />
         </TabsContent>
       </Tabs>
     </div>
