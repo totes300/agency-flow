@@ -34,11 +34,11 @@ export function TaskCategorySelect({
   currentCategoryName?: string | null
 }) {
   const [open, setOpen] = useState(false)
-  const categories = useQuery(api.workCategories.list, open ? {} : "skip")
+  const categories = useQuery(api.workCategories.list, {})
   const updateTask = useMutation(api.tasks.update)
   const autoAssign = useQuery(
     api.tasks.getAutoAssignSuggestion,
-    open && projectId && currentCategoryId
+    projectId && currentCategoryId
       ? {
           projectId: projectId as Id<"projects">,
           workCategoryId: currentCategoryId as Id<"workCategories">,

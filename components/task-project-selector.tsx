@@ -41,7 +41,7 @@ export function TaskProjectSelector({
   currentClientName?: string | null
 }) {
   const [open, setOpen] = useState(false)
-  const projects = useQuery(api.projects.listAll, open ? {} : "skip")
+  const projects = useQuery(api.projects.listAll, {})
   const me = useQuery(api.users.getMe)
   const updateTask = useMutation(api.tasks.update)
 

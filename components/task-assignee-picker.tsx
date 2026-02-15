@@ -67,7 +67,7 @@ export function TaskAssigneePicker({
   currentAssignees: { _id: string; name: string; avatarUrl?: string }[]
 }) {
   const [open, setOpen] = useState(false)
-  const users = useQuery(api.users.listAll, open ? {} : "skip")
+  const users = useQuery(api.users.listAll, {})
   const updateTask = useMutation(api.tasks.update)
 
   const selectedIds = new Set(currentAssigneeIds)
