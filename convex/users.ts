@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { requireAuth } from "./lib/permissions";
 import { userRole } from "./schema";
 
@@ -77,6 +77,21 @@ export const listAll = query({
     await requireAuth(ctx);
     const all = await ctx.db.query("users").collect();
     return all.filter((u) => !u.isAnonymized);
+  },
+});
+
+/**
+ * Update recently used projects for the current user.
+ * Pushes projectId to front, deduplicates, caps at 5.
+ */
+export const updateRecentProjects = mutation({
+  args: { projectId: v.id("projects") },
+  handler: async (ctx, { projectId }) => {
+    const user = await requireAuth(ctx);
+    const recentIds = user.recentProjectIds ?? [];
+    const filtered = recentIds.filter((pid) => pid !== projectId);
+    const updated = [projectId, ...filtered].slice(0, 5);
+    await ctx.db.patch(user._id, { recentProjectIds: updated });
   },
 });
 
