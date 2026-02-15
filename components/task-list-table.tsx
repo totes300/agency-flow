@@ -52,22 +52,25 @@ export function TaskListTable({
   const inputRef = useRef<HTMLInputElement>(null)
   const createTask = useMutation(api.tasks.create)
 
+  // Use ref to read title at call time — avoids recreating callback on every keystroke
+  const titleRef = useRef(creatingTitle)
+  titleRef.current = creatingTitle
+
   const handleCreate = useCallback(async () => {
-    const trimmed = creatingTitle.trim()
+    const trimmed = titleRef.current.trim()
     if (!trimmed) return
 
     setIsCreating(true)
     try {
       await createTask({ title: trimmed })
       setCreatingTitle("")
-      // Keep the input focused for rapid entry
       inputRef.current?.focus()
     } catch (err: unknown) {
       toast.error((err as Error).message)
     } finally {
       setIsCreating(false)
     }
-  }, [creatingTitle, createTask])
+  }, [createTask])
 
   const handleCreateKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
@@ -152,7 +155,7 @@ export function TaskListTable({
                       onChange={(e) => setCreatingTitle(e.target.value)}
                       onKeyDown={handleCreateKeyDown}
                       onBlur={() => {
-                        if (!creatingTitle.trim()) {
+                        if (!titleRef.current.trim()) {
                           setShowCreateRow(false)
                         }
                       }}
