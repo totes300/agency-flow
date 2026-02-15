@@ -48,6 +48,7 @@ These are things that WILL go wrong if not explicitly stated:
 25. **Retainer periods use lazy creation** — created on first access (logging time or viewing retainer detail), not via cron.
 26. **Team members see only tasks assigned to them** — not "projects they're a member of." No project membership concept.
 27. **Moving a task to a different project is blocked** if any time entries exist on it. Admin sees a warning explaining why.
+28. **Use shadcn/ui components — never create custom UI components from scratch.** Before building any UI element, search the shadcn registry (via the shadcn MCP server: `search_items_in_registries`, `view_items_in_registries`, `get_item_examples_from_registries`) for an existing component. Use `get_add_command_for_items` to install it. Only extend or compose shadcn primitives if no direct match exists. Do not hand-roll buttons, dialogs, dropdowns, inputs, tables, toasts, popovers, or any other standard UI pattern.
 
 
 

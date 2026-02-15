@@ -1,7 +1,7 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { AppSidebar } from "@/components/app-sidebar"
-import { CommandSearch } from "@/components/command-search"
 import { Separator } from "@/components/ui/separator"
 import {
   SidebarInset,
@@ -12,6 +12,10 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { SearchIcon } from "lucide-react"
 import { useState } from "react"
+
+const CommandSearch = dynamic(() =>
+  import("@/components/command-search").then((m) => ({ default: m.CommandSearch }))
+)
 
 export default function DashboardLayout({
   children,
