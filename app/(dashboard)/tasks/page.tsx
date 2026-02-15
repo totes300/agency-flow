@@ -2,11 +2,13 @@
 
 import { useState, useCallback, useMemo, Suspense } from "react"
 import { useQuery } from "convex/react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TaskListTable } from "@/components/task-list-table"
 import { TaskFilterBar, useTaskFilters } from "@/components/task-filters"
+import { TaskDetailDialog } from "@/components/task-detail-dialog"
 import type { GroupByOption } from "@/components/task-filters"
 
 function TasksPageInner() {
@@ -14,6 +16,10 @@ function TasksPageInner() {
   const [cursor, setCursor] = useState<string | undefined>(undefined)
   const [allPages, setAllPages] = useState<any[][]>([])
   const [isLoadingMore, setIsLoadingMore] = useState(false)
+
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const openTaskId = searchParams.get("task") as Id<"tasks"> | null
 
   const { filters, groupBy, setFilter, setFilters, setGroupBy, clearAll, hasFilters } =
     useTaskFilters()
@@ -123,6 +129,22 @@ function TasksPageInner() {
     clearAll()
   }, [clearAll])
 
+  const handleOpenTask = useCallback(
+    (taskId: string) => {
+      const params = new URLSearchParams(searchParams.toString())
+      params.set("task", taskId)
+      router.push(`?${params.toString()}`, { scroll: false })
+    },
+    [router, searchParams],
+  )
+
+  const handleCloseTask = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete("task")
+    const qs = params.toString()
+    router.push(qs ? `?${qs}` : "/tasks", { scroll: false })
+  }, [router, searchParams])
+
   // Wait for authenticated user before rendering anything
   if (!me) {
     return (
@@ -159,6 +181,15 @@ function TasksPageInner() {
         onLoadMore={handleLoadMore}
         isLoadingMore={isLoadingMore}
         groupBy={groupBy}
+        onOpenTask={handleOpenTask}
+      />
+
+      <TaskDetailDialog
+        taskId={openTaskId}
+        open={!!openTaskId}
+        onOpenChange={(open) => {
+          if (!open) handleCloseTask()
+        }}
       />
     </div>
   )

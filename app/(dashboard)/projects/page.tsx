@@ -138,9 +138,9 @@ export default function ProjectsPage() {
 
       {/* Content */}
       {!projects ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-[140px] rounded-xl" />
+            <Skeleton key={i} className="h-[180px] rounded-xl" />
           ))}
         </div>
       ) : filtered.length === 0 ? (
@@ -162,7 +162,7 @@ export default function ProjectsPage() {
                   ({group.projects.length})
                 </span>
               </h2>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {group.projects.map((project) => (
                   <ProjectCard key={project._id} project={project} />
                 ))}

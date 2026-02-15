@@ -129,6 +129,7 @@ export default defineSchema({
     assigneeIds: v.array(v.id("users")),
     workCategoryId: v.optional(v.id("workCategories")),
     estimate: v.optional(v.number()), // integer minutes (#4)
+    sortOrder: v.optional(v.number()), // subtask ordering
     billable: v.boolean(), // defaults true (#19)
     clientUpdateText: v.optional(v.string()),
     isArchived: v.boolean(),
@@ -170,6 +171,7 @@ export default defineSchema({
     fileName: v.string(),
     mimeType: v.string(),
     size: v.number(), // bytes, max 10MB (#22)
+    uploadedBy: v.id("users"),
   })
     .index("by_taskId", ["taskId"]),
 

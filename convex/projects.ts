@@ -465,6 +465,15 @@ export const listAllWithMetrics = query({
     const allEstimates = await ctx.db
       .query("projectCategoryEstimates")
       .collect();
+    const allRetainerPeriods = await ctx.db
+      .query("retainerPeriods")
+      .collect();
+    const allWorkCategories = await ctx.db
+      .query("workCategories")
+      .collect();
+    const categoryNameMap = new Map(
+      allWorkCategories.map((c) => [c._id, c.name]),
+    );
 
     // Build lookup maps
     const clientMap = new Map(allClients.map((c) => [c._id, c]));
@@ -535,8 +544,16 @@ export const listAllWithMetrics = query({
         }
       }
 
-      // Budget minutes
+      // Budget minutes + retainer rollover
       let budgetMinutes: number | null = null;
+      let rolloverMinutes = 0;
+      let overageMinutes = 0;
+      let categoryBreakdown: Array<{
+        categoryName: string;
+        estimatedMinutes: number;
+        actualMinutes: number;
+      }> | null = null;
+
       if (project.billingType === "fixed") {
         const estimates = estimatesByProject.get(project._id) ?? [];
         if (estimates.length > 0) {
@@ -546,11 +563,46 @@ export const listAllWithMetrics = query({
           );
           budgetMinutes = total > 0 ? total : null;
         }
-      } else if (
-        project.billingType === "retainer" &&
-        project.includedHoursPerMonth
-      ) {
-        budgetMinutes = project.includedHoursPerMonth;
+
+        // Per-category breakdown
+        const categoryActuals = new Map<string, number>();
+        for (const task of tasks) {
+          if (!task.workCategoryId || task.isArchived) continue;
+          const entries = entriesByTask.get(task._id) ?? [];
+          const sum = entries.reduce((s, e) => s + e.durationMinutes, 0);
+          categoryActuals.set(
+            task.workCategoryId,
+            (categoryActuals.get(task.workCategoryId) ?? 0) + sum,
+          );
+        }
+        if (estimates.length > 0) {
+          categoryBreakdown = estimates.map((est) => ({
+            categoryName:
+              categoryNameMap.get(est.workCategoryId) ?? "Unknown",
+            estimatedMinutes: est.estimatedMinutes,
+            actualMinutes:
+              categoryActuals.get(est.workCategoryId) ?? 0,
+          }));
+        }
+      } else if (project.billingType === "retainer") {
+        // Find current month's retainer period for rollover
+        const currentPeriod = allRetainerPeriods.find(
+          (p) =>
+            p.projectId === project._id &&
+            currentMonthPrefix >= p.periodStart.slice(0, 7) &&
+            currentMonthPrefix <= p.periodEnd.slice(0, 7),
+        );
+        if (currentPeriod) {
+          budgetMinutes =
+            currentPeriod.includedMinutes + currentPeriod.rolloverMinutes;
+          rolloverMinutes = currentPeriod.rolloverMinutes;
+        } else {
+          budgetMinutes = project.includedHoursPerMonth ?? null;
+        }
+        overageMinutes =
+          budgetMinutes
+            ? Math.max(0, currentMonthMinutes - budgetMinutes)
+            : 0;
       }
 
       // Burn percent
@@ -604,6 +656,9 @@ export const listAllWithMetrics = query({
         uninvoicedMinutes,
         budgetMinutes,
         burnPercent,
+        rolloverMinutes,
+        overageMinutes,
+        categoryBreakdown,
         lastActivityDate,
         healthStatus,
         activeTaskCount,

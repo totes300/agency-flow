@@ -125,6 +125,7 @@ export function TaskListTable({
   onLoadMore,
   isLoadingMore,
   groupBy = "none",
+  onOpenTask,
 }: {
   data: TaskListResult | undefined
   isLoading: boolean
@@ -132,6 +133,7 @@ export function TaskListTable({
   onLoadMore: () => void
   isLoadingMore: boolean
   groupBy?: GroupByOption
+  onOpenTask?: (taskId: string) => void
 }) {
   const [creatingTitle, setCreatingTitle] = useState("")
   const [isCreating, setIsCreating] = useState(false)
@@ -372,6 +374,7 @@ export function TaskListTable({
                 selectedIds={selectedIds}
                 onToggleSelect={toggleSelect}
                 onCreateInGroup={() => openCreateRow(group.key)}
+                onOpenTask={onOpenTask}
                 creationRow={
                   showCreateRow && createGroupKey === group.key
                     ? inlineCreationRow
@@ -399,6 +402,7 @@ export function TaskListTable({
                     isAdmin={isAdmin}
                     isSelected={selectedIds.has(task._id)}
                     onToggleSelect={toggleSelect}
+                    onOpenTask={onOpenTask}
                   />
                 ))}
                 {inlineCreationRow}
@@ -419,6 +423,7 @@ export function TaskListTable({
                 isAdmin={isAdmin}
                 selectedIds={selectedIds}
                 onToggleSelect={toggleSelect}
+                onOpenTask={onOpenTask}
               />
             ))}
           </div>
@@ -431,6 +436,7 @@ export function TaskListTable({
                 isAdmin={isAdmin}
                 isSelected={selectedIds.has(task._id)}
                 onToggleSelect={toggleSelect}
+                onOpenTask={onOpenTask}
               />
             ))}
           </div>
@@ -565,6 +571,7 @@ function GroupSection({
   selectedIds,
   onToggleSelect,
   onCreateInGroup,
+  onOpenTask,
   creationRow,
 }: {
   group: TaskGroup
@@ -572,6 +579,7 @@ function GroupSection({
   selectedIds: Set<string>
   onToggleSelect: (taskId: string) => void
   onCreateInGroup: () => void
+  onOpenTask?: (taskId: string) => void
   creationRow: React.ReactNode
 }) {
   const [isOpen, setIsOpen] = useState(true)
@@ -615,6 +623,7 @@ function GroupSection({
                   isAdmin={isAdmin}
                   isSelected={selectedIds.has(task._id)}
                   onToggleSelect={onToggleSelect}
+                  onOpenTask={onOpenTask}
                 />
               ))}
               {creationRow}
@@ -644,11 +653,13 @@ function MobileGroupSection({
   isAdmin,
   selectedIds,
   onToggleSelect,
+  onOpenTask,
 }: {
   group: TaskGroup
   isAdmin: boolean
   selectedIds: Set<string>
   onToggleSelect: (taskId: string) => void
+  onOpenTask?: (taskId: string) => void
 }) {
   const [isOpen, setIsOpen] = useState(true)
 
@@ -678,6 +689,7 @@ function MobileGroupSection({
                 isAdmin={isAdmin}
                 isSelected={selectedIds.has(task._id)}
                 onToggleSelect={onToggleSelect}
+                onOpenTask={onOpenTask}
               />
             ))}
           </div>
@@ -694,36 +706,41 @@ function TaskRow({
   isAdmin,
   isSelected,
   onToggleSelect,
+  onOpenTask,
 }: {
   task: EnrichedTask
   isAdmin: boolean
   isSelected: boolean
   onToggleSelect: (taskId: string) => void
+  onOpenTask?: (taskId: string) => void
 }) {
   return (
-    <TableRow className="group" data-selected={isSelected || undefined}>
+    <TableRow
+      className="group cursor-pointer"
+      data-selected={isSelected || undefined}
+      onClick={() => onOpenTask?.(task._id)}
+    >
       {/* Checkbox */}
-      <TableCell className="w-10">
+      <TableCell className="w-10" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-center opacity-0 group-hover:opacity-100 group-data-[selected]:opacity-100 transition-opacity">
           <Checkbox
             checked={isSelected}
             onCheckedChange={() => onToggleSelect(task._id)}
-            onClick={(e) => e.stopPropagation()}
             aria-label={`Select "${task.title}"`}
           />
         </div>
       </TableCell>
 
       {/* Title + indicators */}
-      <TableCell className="font-medium">
+      <TableCell className="font-medium max-w-[400px]">
         <div className="flex items-center min-w-0">
-          <span className="line-clamp-1 shrink">{task.title}</span>
+          <span className="truncate shrink">{task.title}</span>
           <TaskIndicators task={task} />
         </div>
       </TableCell>
 
       {/* Project */}
-      <TableCell>
+      <TableCell onClick={(e) => e.stopPropagation()}>
         <TaskProjectSelector
           taskId={task._id as Id<"tasks">}
           currentProjectId={task.projectId}
@@ -733,7 +750,7 @@ function TaskRow({
       </TableCell>
 
       {/* Assignees */}
-      <TableCell>
+      <TableCell onClick={(e) => e.stopPropagation()}>
         <TaskAssigneePicker
           taskId={task._id as Id<"tasks">}
           currentAssigneeIds={task.assigneeIds}
@@ -742,7 +759,7 @@ function TaskRow({
       </TableCell>
 
       {/* Status */}
-      <TableCell>
+      <TableCell onClick={(e) => e.stopPropagation()}>
         <TaskStatusSelect
           taskId={task._id as Id<"tasks">}
           currentStatus={task.status}
@@ -751,7 +768,7 @@ function TaskRow({
       </TableCell>
 
       {/* Category */}
-      <TableCell>
+      <TableCell onClick={(e) => e.stopPropagation()}>
         <TaskCategorySelect
           taskId={task._id as Id<"tasks">}
           projectId={task.projectId}
@@ -768,7 +785,7 @@ function TaskRow({
       </TableCell>
 
       {/* Actions */}
-      <TableCell>
+      <TableCell onClick={(e) => e.stopPropagation()}>
         <TaskActionsMenu
           taskId={task._id as Id<"tasks">}
           taskTitle={task.title}
@@ -787,16 +804,19 @@ function TaskCard({
   isAdmin,
   isSelected,
   onToggleSelect,
+  onOpenTask,
 }: {
   task: EnrichedTask
   isAdmin: boolean
   isSelected: boolean
   onToggleSelect: (taskId: string) => void
+  onOpenTask?: (taskId: string) => void
 }) {
   return (
     <div
-      className="rounded-lg border bg-card p-3 space-y-2"
+      className="rounded-lg border bg-card p-3 space-y-2 cursor-pointer"
       data-selected={isSelected || undefined}
+      onClick={() => onOpenTask?.(task._id)}
     >
       {/* Row 1: Checkbox + Title + Indicators */}
       <div className="flex items-start gap-2">
@@ -815,13 +835,15 @@ function TaskCard({
             <TaskIndicators task={task} />
           </div>
         </div>
-        <TaskActionsMenu
-          taskId={task._id as Id<"tasks">}
-          taskTitle={task.title}
-          isAdmin={isAdmin}
-          hasTimeEntries={task.totalMinutes > 0}
-          alwaysVisible
-        />
+        <div onClick={(e) => e.stopPropagation()}>
+          <TaskActionsMenu
+            taskId={task._id as Id<"tasks">}
+            taskTitle={task.title}
+            isAdmin={isAdmin}
+            hasTimeEntries={task.totalMinutes > 0}
+            alwaysVisible
+          />
+        </div>
       </div>
 
       {/* Row 2: Project / Client */}

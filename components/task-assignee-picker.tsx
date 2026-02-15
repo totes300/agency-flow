@@ -33,25 +33,38 @@ function getInitials(name: string) {
 
 export function TaskAssigneeAvatars({
   assignees,
+  showNames = false,
 }: {
   assignees: { _id: string; name: string; avatarUrl?: string }[]
+  showNames?: boolean
 }) {
   if (assignees.length === 0) {
     return <span className="text-muted-foreground text-sm">Unassigned</span>
   }
 
+  const nameLabel = showNames
+    ? assignees.length === 1
+      ? assignees[0].name.split(" ")[0]
+      : `${assignees[0].name.split(" ")[0]} +${assignees.length - 1}`
+    : null
+
   return (
-    <div className="flex -space-x-1.5">
-      {assignees.slice(0, 3).map((a) => (
-        <Avatar key={a._id} className="size-6 border-2 border-background">
-          <AvatarImage src={a.avatarUrl} alt={a.name} />
-          <AvatarFallback className="text-[10px]">{getInitials(a.name)}</AvatarFallback>
-        </Avatar>
-      ))}
-      {assignees.length > 3 && (
-        <div className="flex size-6 items-center justify-center rounded-full border-2 border-background bg-muted text-[10px] font-medium">
-          +{assignees.length - 3}
-        </div>
+    <div className="flex items-center gap-1.5">
+      <div className="flex -space-x-1.5">
+        {assignees.slice(0, 3).map((a) => (
+          <Avatar key={a._id} className="size-6 border-2 border-background">
+            <AvatarImage src={a.avatarUrl} alt={a.name} />
+            <AvatarFallback className="text-[10px]">{getInitials(a.name)}</AvatarFallback>
+          </Avatar>
+        ))}
+        {assignees.length > 3 && (
+          <div className="flex size-6 items-center justify-center rounded-full border-2 border-background bg-muted text-[10px] font-medium">
+            +{assignees.length - 3}
+          </div>
+        )}
+      </div>
+      {nameLabel && (
+        <span className="text-sm truncate max-w-[120px]">{nameLabel}</span>
       )}
     </div>
   )
@@ -61,10 +74,12 @@ export function TaskAssigneePicker({
   taskId,
   currentAssigneeIds,
   currentAssignees,
+  showNames = false,
 }: {
   taskId: Id<"tasks">
   currentAssigneeIds: string[]
   currentAssignees: { _id: string; name: string; avatarUrl?: string }[]
+  showNames?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const users = useQuery(api.users.listAll, {})
@@ -92,7 +107,7 @@ export function TaskAssigneePicker({
           className="rounded-md px-1 py-1 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={(e) => e.stopPropagation()}
         >
-          <TaskAssigneeAvatars assignees={currentAssignees} />
+          <TaskAssigneeAvatars assignees={currentAssignees} showNames={showNames} />
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-56 p-0" align="start" onClick={(e) => e.stopPropagation()}>

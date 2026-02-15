@@ -8,7 +8,10 @@
  * @module
  */
 
+import type * as activityLog from "../activityLog.js";
+import type * as attachments from "../attachments.js";
 import type * as clients from "../clients.js";
+import type * as comments from "../comments.js";
 import type * as http from "../http.js";
 import type * as lib_permissions from "../lib/permissions.js";
 import type * as projects from "../projects.js";
@@ -16,6 +19,8 @@ import type * as retainerPeriods from "../retainerPeriods.js";
 import type * as search from "../search.js";
 import type * as seed from "../seed.js";
 import type * as tasks from "../tasks.js";
+import type * as timeEntries from "../timeEntries.js";
+import type * as timer from "../timer.js";
 import type * as users from "../users.js";
 import type * as workCategories from "../workCategories.js";
 import type * as workspaceSettings from "../workspaceSettings.js";
@@ -27,7 +32,10 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  activityLog: typeof activityLog;
+  attachments: typeof attachments;
   clients: typeof clients;
+  comments: typeof comments;
   http: typeof http;
   "lib/permissions": typeof lib_permissions;
   projects: typeof projects;
@@ -35,6 +43,8 @@ declare const fullApi: ApiFromModules<{
   search: typeof search;
   seed: typeof seed;
   tasks: typeof tasks;
+  timeEntries: typeof timeEntries;
+  timer: typeof timer;
   users: typeof users;
   workCategories: typeof workCategories;
   workspaceSettings: typeof workspaceSettings;

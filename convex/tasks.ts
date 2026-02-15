@@ -124,6 +124,38 @@ export const get = query({
       0,
     );
 
+    // Subtasks
+    const subtasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_parentTaskId", (q) => q.eq("parentTaskId", id))
+      .collect();
+
+    subtasks.sort((a, b) => {
+      const aOrder = a.sortOrder ?? a._creationTime;
+      const bOrder = b.sortOrder ?? b._creationTime;
+      return aOrder - bOrder;
+    });
+
+    let subtaskTotalMinutes = 0;
+    for (const st of subtasks) {
+      const stEntries = await ctx.db
+        .query("timeEntries")
+        .withIndex("by_taskId", (q: any) => q.eq("taskId", st._id))
+        .collect();
+      subtaskTotalMinutes += stEntries.reduce(
+        (sum: number, e: any) => sum + e.durationMinutes,
+        0,
+      );
+    }
+
+    const enrichedSubtasks = subtasks.map((st) => ({
+      _id: st._id,
+      title: st.title,
+      status: st.status,
+      sortOrder: st.sortOrder,
+      _creationTime: st._creationTime,
+    }));
+
     return {
       ...task,
       projectName,
@@ -133,6 +165,8 @@ export const get = query({
       assignees: assignees.filter(Boolean),
       workCategoryName,
       totalMinutes,
+      subtasks: enrichedSubtasks,
+      subtaskTotalMinutes,
     };
   },
 });
@@ -780,6 +814,72 @@ export const moveToProject = mutation({
         workCategoryId: undefined,
       });
     }
+  },
+});
+
+/**
+ * Update task description (Tiptap JSON). Auto-saved with debounce on the client.
+ */
+export const updateDescription = mutation({
+  args: {
+    id: v.id("tasks"),
+    description: v.any(),
+  },
+  handler: async (ctx, { id, description }) => {
+    const user = await requireAuth(ctx);
+    const task = await ctx.db.get(id);
+    if (!task) throw new Error("Task not found");
+    if (!isAdmin(user) && !task.assigneeIds.includes(user._id)) {
+      throw new Error("Access denied");
+    }
+    await ctx.db.patch(id, { description });
+    await ctx.runMutation(internal.activityLog.log, {
+      taskId: id,
+      userId: user._id,
+      action: "edited description",
+    });
+  },
+});
+
+/**
+ * Swap a subtask's order with its sibling (up or down).
+ */
+export const swapSubtaskOrder = mutation({
+  args: {
+    taskId: v.id("tasks"),
+    direction: v.union(v.literal("up"), v.literal("down")),
+  },
+  handler: async (ctx, { taskId, direction }) => {
+    await requireAuth(ctx);
+    const task = await ctx.db.get(taskId);
+    if (!task) throw new Error("Task not found");
+    if (!task.parentTaskId) throw new Error("Not a subtask");
+
+    const siblings = await ctx.db
+      .query("tasks")
+      .withIndex("by_parentTaskId", (q) =>
+        q.eq("parentTaskId", task.parentTaskId),
+      )
+      .collect();
+
+    siblings.sort((a, b) => {
+      const aOrder = a.sortOrder ?? a._creationTime;
+      const bOrder = b.sortOrder ?? b._creationTime;
+      return aOrder - bOrder;
+    });
+
+    const idx = siblings.findIndex((s) => s._id === taskId);
+    if (idx === -1) return;
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= siblings.length) return;
+
+    const current = siblings[idx];
+    const swap = siblings[swapIdx];
+    const currentOrder = current.sortOrder ?? current._creationTime;
+    const swapOrder = swap.sortOrder ?? swap._creationTime;
+
+    await ctx.db.patch(current._id, { sortOrder: swapOrder });
+    await ctx.db.patch(swap._id, { sortOrder: currentOrder });
   },
 });
 

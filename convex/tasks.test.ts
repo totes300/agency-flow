@@ -1450,3 +1450,106 @@ describe("users.updateRecentProjects", () => {
     expect(userAfter!.recentProjectIds).toHaveLength(1);
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════
+// tasks.updateDescription
+// ═══════════════════════════════════════════════════════════════════════
+
+describe("tasks.updateDescription", () => {
+  it("saves Tiptap JSON", async () => {
+    const t = convexTest(schema, modules);
+    const asAdmin = await setupAdmin(t);
+    const taskId = await asAdmin.mutation(api.tasks.create, { title: "Task" });
+
+    const tiptapDoc = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Hello" }] }] };
+    await asAdmin.mutation(api.tasks.updateDescription, { id: taskId, description: tiptapDoc });
+
+    const raw = await t.run(async (ctx) => ctx.db.get(taskId));
+    expect(raw!.description).toEqual(tiptapDoc);
+  });
+
+  it("member on assigned task", async () => {
+    const t = convexTest(schema, modules);
+    const asAdmin = await setupAdmin(t);
+    const asMember = await setupMember(t);
+    const memberUser = await t.run(async (ctx) =>
+      ctx.db.query("users").withIndex("by_clerkId", (q) => q.eq("clerkId", "member_1")).unique()
+    );
+    const taskId = await asAdmin.mutation(api.tasks.create, {
+      title: "Task", assigneeIds: [memberUser!._id],
+    });
+
+    await asMember.mutation(api.tasks.updateDescription, { id: taskId, description: { text: "ok" } });
+    const raw = await t.run(async (ctx) => ctx.db.get(taskId));
+    expect(raw!.description).toEqual({ text: "ok" });
+  });
+
+  it("member blocked on unassigned", async () => {
+    const t = convexTest(schema, modules);
+    const asAdmin = await setupAdmin(t);
+    const asMember = await setupMember(t);
+    const taskId = await asAdmin.mutation(api.tasks.create, { title: "Task" });
+
+    await expect(
+      asMember.mutation(api.tasks.updateDescription, { id: taskId, description: {} }),
+    ).rejects.toThrow("Access denied");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// tasks.swapSubtaskOrder
+// ═══════════════════════════════════════════════════════════════════════
+
+describe("tasks.swapSubtaskOrder", () => {
+  it("swaps correctly", async () => {
+    const t = convexTest(schema, modules);
+    const asAdmin = await setupAdmin(t);
+    const parentId = await asAdmin.mutation(api.tasks.create, { title: "Parent" });
+    const sub1 = await asAdmin.mutation(api.tasks.create, { title: "Sub 1", parentTaskId: parentId });
+    const sub2 = await asAdmin.mutation(api.tasks.create, { title: "Sub 2", parentTaskId: parentId });
+
+    // Move sub2 up
+    await asAdmin.mutation(api.tasks.swapSubtaskOrder, { taskId: sub2, direction: "up" });
+
+    const parent = await asAdmin.query(api.tasks.get, { id: parentId });
+    expect(parent.subtasks[0]._id).toBe(sub2);
+    expect(parent.subtasks[1]._id).toBe(sub1);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// tasks.get — subtask enrichment
+// ═══════════════════════════════════════════════════════════════════════
+
+describe("tasks.get — subtasks", () => {
+  it("returns subtasks with enrichment", async () => {
+    const t = convexTest(schema, modules);
+    const asAdmin = await setupAdmin(t);
+    const parentId = await asAdmin.mutation(api.tasks.create, { title: "Parent" });
+    await asAdmin.mutation(api.tasks.create, { title: "Sub 1", parentTaskId: parentId });
+    await asAdmin.mutation(api.tasks.create, { title: "Sub 2", parentTaskId: parentId });
+
+    const parent = await asAdmin.query(api.tasks.get, { id: parentId });
+    expect(parent.subtasks).toHaveLength(2);
+    expect(parent.subtasks[0].title).toBe("Sub 1");
+  });
+
+  it("parent totalMinutes includes subtask time", async () => {
+    const t = convexTest(schema, modules);
+    const asAdmin = await setupAdmin(t);
+    const { projectId } = await setupClientProject(asAdmin);
+    const parentId = await asAdmin.mutation(api.tasks.create, { title: "Parent", projectId });
+    const subId = await asAdmin.mutation(api.tasks.create, { title: "Sub", parentTaskId: parentId });
+
+    // Add time to subtask
+    await t.run(async (ctx) => {
+      const user = await ctx.db.query("users").withIndex("by_clerkId", (q) => q.eq("clerkId", "admin_1")).unique();
+      await ctx.db.insert("timeEntries", {
+        taskId: subId, userId: user!._id, date: "2025-06-15", durationMinutes: 30, method: "manual",
+      });
+    });
+
+    const parent = await asAdmin.query(api.tasks.get, { id: parentId });
+    expect(parent.subtaskTotalMinutes).toBe(30);
+  });
+});
