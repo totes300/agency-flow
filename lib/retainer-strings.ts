@@ -76,3 +76,31 @@ export const T = {
   custom: "Custom",
   pickDates: "Pick dates",
 } as const;
+
+// ── Shared badge styling for status tags ────────────────────────────
+
+type StatusVariant = "default" | "success" | "destructive" | "warning" | "secondary";
+
+export function getStatusBadgeProps(variant: StatusVariant): {
+  variant: "outline" | "destructive" | "secondary"
+  className: string
+} {
+  if (variant === "success") {
+    return {
+      variant: "outline",
+      className:
+        "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
+    }
+  }
+  if (variant === "destructive") {
+    return { variant: "destructive", className: "" }
+  }
+  if (variant === "warning") {
+    return {
+      variant: "secondary",
+      className:
+        "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300",
+    }
+  }
+  return { variant: "outline", className: "" }
+}

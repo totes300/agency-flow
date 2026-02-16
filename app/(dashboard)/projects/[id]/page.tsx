@@ -243,6 +243,8 @@ export default function ProjectDetailPage({
             tmCategoryRates: project.tmCategoryRates,
             includedHoursPerMonth: project.includedHoursPerMonth,
             overageRate: project.overageRate,
+            rolloverEnabled: project.rolloverEnabled,
+            startDate: project.startDate,
             categoryEstimates: project.categoryEstimates,
           }}
         />

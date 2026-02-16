@@ -5,7 +5,6 @@ import { useQuery } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Badge } from "@/components/ui/badge"
 import { RetainerCycleDashboard } from "@/components/retainer-cycle-dashboard"
 import {
   RetainerFilterBar,
@@ -17,8 +16,6 @@ import {
   CYCLE_LENGTH,
   type ComputedMonth,
 } from "@/convex/lib/retainerCompute"
-import { formatCurrency } from "@/lib/format"
-import { SettingsIcon } from "lucide-react"
 
 interface RetainerViewProps {
   projectId: Id<"projects">
@@ -26,23 +23,31 @@ interface RetainerViewProps {
   isAdmin: boolean
 }
 
-/** Format a cycle range label like "Apr – Jun 2025" from an array of months. */
+/** Format a cycle range label like "Dec 1 – Feb 28, 2026" from an array of months. */
 function getCycleRangeLabel(months: ComputedMonth[]): string {
   if (months.length === 0) return ""
   const first = months[0]
   const last = months[months.length - 1]
   const [fy, fm] = first.yearMonth.split("-").map(Number)
   const [ly, lm] = last.yearMonth.split("-").map(Number)
-  const firstName = new Date(fy, fm - 1, 1).toLocaleString("en-US", {
-    month: "short",
-  })
-  const lastName = new Date(ly, lm - 1, 1).toLocaleString("en-US", {
-    month: "short",
-  })
-  const year = ly
-  return months.length === 1
-    ? `${firstName} ${year}`
-    : `${firstName} – ${lastName} ${year}`
+
+  const startDate = new Date(fy, fm - 1, 1)
+  // Last day of the last month: day 0 of the next month
+  const endDate = new Date(ly, lm, 0)
+
+  const startMonth = startDate.toLocaleString("en-US", { month: "short" })
+  const endMonth = endDate.toLocaleString("en-US", { month: "short" })
+
+  if (months.length === 1) {
+    return `${startMonth} ${startDate.getDate()} – ${endMonth} ${endDate.getDate()}, ${ly}`
+  }
+
+  // Cross-year: "Dec 1, 2025 – Feb 28, 2026"
+  if (fy !== ly) {
+    return `${startMonth} ${startDate.getDate()}, ${fy} – ${endMonth} ${endDate.getDate()}, ${ly}`
+  }
+
+  return `${startMonth} ${startDate.getDate()} – ${endMonth} ${endDate.getDate()}, ${ly}`
 }
 
 export function RetainerView({
@@ -114,8 +119,17 @@ export function RetainerView({
     return map
   }, [dashboardSource])
 
+  // Derive display values — all hooks must run before any early return
+  const config = data?.config
+  const filteredMonths = data?.months
+  const displayMonths = useMemo(
+    () => (filteredMonths ? [...filteredMonths].reverse() : []),
+    [filteredMonths],
+  )
+  const budgetHours = config ? minutesToHours(config.includedMinutesPerMonth) : 0
+
   // Loading state
-  if (!data) {
+  if (!data || !config) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-full" />
@@ -127,38 +141,21 @@ export function RetainerView({
     )
   }
 
-  const {
-    config,
-    months: filteredMonths,
-  } = data
-
-  const budgetHours = minutesToHours(config.includedMinutesPerMonth)
-  const displayMonths = [...filteredMonths].reverse() // newest first
-
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      {/* ─── Header: config summary + rollover mode ─── */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground text-sm tabular-nums">
-            {budgetHours}h/month
-            {isAdmin && config.overageRate ? (
-              <>
-                {" · "}
-                {formatCurrency(config.overageRate, config.currency)}/h
-              </>
-            ) : null}
-            {config.rolloverEnabled ? " · 3-month cycles" : ""}
-          </span>
-        </div>
-        <Badge
-          variant="outline"
-          className="gap-1 text-xs"
-        >
-          <SettingsIcon className="size-3" />
-          {config.rolloverEnabled ? "Rollover enabled" : "Monthly settlement"}
-        </Badge>
-      </div>
+    <div className="max-w-5xl space-y-5">
+      {/* ─── Cycle dashboard (current cycle, always unfiltered) ─── */}
+      {currentCycleMonths.length > 0 && (
+        <RetainerCycleDashboard
+          cycleMonths={currentCycleMonths}
+          budgetMinutes={config.includedMinutesPerMonth}
+          rolloverEnabled={config.rolloverEnabled}
+          cycleRangeLabel={cycleRangeLabel}
+          isAdmin={isAdmin}
+          overageRate={config.overageRate}
+          currency={config.currency}
+          budgetHoursPerMonth={budgetHours}
+        />
+      )}
 
       {/* ─── Filter bar ─── */}
       <RetainerFilterBar
@@ -169,35 +166,41 @@ export function RetainerView({
         onFiltersChange={setFilters}
       />
 
-      {/* ─── Cycle dashboard (current cycle, always unfiltered) ─── */}
-      {currentCycleMonths.length > 0 && (
-        <RetainerCycleDashboard
-          cycleMonths={currentCycleMonths}
-          budgetMinutes={config.includedMinutesPerMonth}
-          rolloverEnabled={config.rolloverEnabled}
-          cycleRangeLabel={cycleRangeLabel}
-        />
-      )}
-
       {/* ─── Month list (newest first) ─── */}
       {displayMonths.length > 0 ? (
         <div className="rounded-lg border">
           {displayMonths.map((month, i) => {
             const cycleInfo = cycleWorkedMap.get(month.cycleIndex)
+            // Show cycle divider when this month starts a new cycle vs the previous row
+            const prevMonth = i > 0 ? displayMonths[i - 1] : null
+            const showCycleDivider =
+              config.rolloverEnabled && prevMonth && prevMonth.cycleIndex !== month.cycleIndex
+            const prevCycleLabel = prevMonth
+              ? cycleWorkedMap.get(prevMonth.cycleIndex)?.label
+              : undefined
+
             return (
-              <RetainerMonthRow
-                key={month.yearMonth}
-                month={month}
-                rolloverEnabled={config.rolloverEnabled}
-                budgetMinutes={config.includedMinutesPerMonth}
-                overageRate={config.overageRate}
-                currency={config.currency}
-                cycleWorkedMinutes={cycleInfo?.worked}
-                cyclePoolMinutes={cycleInfo?.pool}
-                cycleRangeLabel={cycleInfo?.label}
-                defaultOpen={i === 0}
-                isAdmin={isAdmin}
-              />
+              <div key={month.yearMonth}>
+                {showCycleDivider && prevCycleLabel && (
+                  <div className="flex items-center gap-3 border-b bg-muted/30 px-4 py-1.5">
+                    <span className="text-muted-foreground text-[10px] font-medium uppercase tracking-wider">
+                      {prevCycleLabel}
+                    </span>
+                  </div>
+                )}
+                <RetainerMonthRow
+                  month={month}
+                  rolloverEnabled={config.rolloverEnabled}
+                  budgetMinutes={config.includedMinutesPerMonth}
+                  overageRate={config.overageRate}
+                  currency={config.currency}
+                  cycleWorkedMinutes={cycleInfo?.worked}
+                  cyclePoolMinutes={cycleInfo?.pool}
+                  cycleRangeLabel={cycleInfo?.label}
+                  defaultOpen={i === 0}
+                  isAdmin={isAdmin}
+                />
+              </div>
             )
           })}
         </div>
@@ -208,19 +211,6 @@ export function RetainerView({
           </p>
         </div>
       )}
-
-      {/* ─── Footer: config summary ─── */}
-      <div className="text-muted-foreground border-t pt-3 text-center text-xs">
-        <span className="tabular-nums">
-          {budgetHours}h included per month
-          {config.rolloverEnabled
-            ? ` · Unused hours roll over within ${CYCLE_LENGTH}-month cycles`
-            : " · Each month settles independently"}
-          {isAdmin && config.overageRate
-            ? ` · Overage rate: ${formatCurrency(config.overageRate, config.currency)}/h`
-            : ""}
-        </span>
-      </div>
     </div>
   )
 }

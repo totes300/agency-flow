@@ -653,7 +653,7 @@ export function ProjectFormDialog({
                     placeholder="e.g., 10"
                     required={billingType === "retainer"}
                   />
-                  {isEditMode && project?.includedHoursPerMonth && includedHours && (
+                  {isEditMode && (project?.includedHoursPerMonth ?? 0) > 0 && includedHours && (
                     parseFloat(includedHours) * 60 !== project.includedHoursPerMonth
                   ) && (
                     <p className="text-muted-foreground text-xs">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Select,
@@ -20,7 +20,6 @@ import { Badge } from "@/components/ui/badge"
 import { T } from "@/lib/retainer-strings"
 import {
   getCycleInfo,
-  getAllMonthsBetween,
   CYCLE_LENGTH,
   getCurrentYearMonth,
 } from "@/convex/lib/retainerCompute"
@@ -120,8 +119,6 @@ function computePresetRange(
         sy--
       }
       const cycleStartYm = `${sy}-${String(sm).padStart(2, "0")}`
-      // Cycle end is CYCLE_LENGTH - 1 months after start
-      const months = getAllMonthsBetween(cycleStartYm, currentYm)
       // Extend to full cycle end
       let em = sm + CYCLE_LENGTH - 1
       let ey = sy
@@ -169,6 +166,10 @@ export function RetainerFilterBar({
   const [customOpen, setCustomOpen] = useState(false)
   const [categoryOpen, setCategoryOpen] = useState(false)
 
+  // Stable ref for filters — avoids recreating callbacks on every filter change
+  const filtersRef = useRef(filters)
+  filtersRef.current = filters
+
   // Active filter count
   const activeCount = useMemo(() => {
     let count = 0
@@ -191,12 +192,12 @@ export function RetainerFilterBar({
 
       const { start, end } = computePresetRange(p, startDate, rolloverEnabled)
       onFiltersChange({
-        ...filters,
+        ...filtersRef.current,
         dateRangeStart: start,
         dateRangeEnd: end,
       })
     },
-    [startDate, rolloverEnabled, filters, onFiltersChange],
+    [startDate, rolloverEnabled, onFiltersChange],
   )
 
   // ── Custom date range handler ──
@@ -211,30 +212,30 @@ export function RetainerFilterBar({
           : fromYm
 
         onFiltersChange({
-          ...filters,
+          ...filtersRef.current,
           dateRangeStart: fromYm,
           dateRangeEnd: toYm,
         })
       }
     },
-    [filters, onFiltersChange],
+    [onFiltersChange],
   )
 
   // ── Category toggle handler ──
 
   const handleCategoryToggle = useCallback(
     (categoryId: string, checked: boolean) => {
-      const current = filters.categoryFilter ?? []
+      const current = filtersRef.current.categoryFilter ?? []
       const next = checked
         ? [...current, categoryId]
         : current.filter((id) => id !== categoryId)
 
       onFiltersChange({
-        ...filters,
+        ...filtersRef.current,
         categoryFilter: next.length > 0 ? next : undefined,
       })
     },
-    [filters, onFiltersChange],
+    [onFiltersChange],
   )
 
   // ── Clear all ──

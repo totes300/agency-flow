@@ -1,13 +1,14 @@
 "use client"
 
 import { Badge } from "@/components/ui/badge"
-import { T } from "@/lib/retainer-strings"
+import { T, getStatusBadgeProps } from "@/lib/retainer-strings"
 import {
   minutesToHours,
   getStatusTag,
   CYCLE_LENGTH,
   type ComputedMonth,
 } from "@/convex/lib/retainerCompute"
+import { formatCurrency } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 interface RetainerCycleDashboardProps {
@@ -19,6 +20,14 @@ interface RetainerCycleDashboardProps {
   rolloverEnabled: boolean
   /** Cycle date range label, e.g. "Apr – Jun 2025" */
   cycleRangeLabel: string
+  /** Whether the current user is an admin */
+  isAdmin: boolean
+  /** Overage rate (admin-only display) */
+  overageRate?: number
+  /** Client currency code */
+  currency: string
+  /** Budget hours per month (for config line) */
+  budgetHoursPerMonth: number
 }
 
 export function RetainerCycleDashboard({
@@ -26,6 +35,10 @@ export function RetainerCycleDashboard({
   budgetMinutes,
   rolloverEnabled,
   cycleRangeLabel,
+  isAdmin,
+  overageRate,
+  currency,
+  budgetHoursPerMonth,
 }: RetainerCycleDashboardProps) {
   const budgetHours = minutesToHours(budgetMinutes)
   const cycleBudgetMinutes = rolloverEnabled
@@ -61,8 +74,20 @@ export function RetainerCycleDashboard({
     ? T.currentCycle(cycleRangeLabel)
     : T.thisMonth
 
+  const pct = cycleBudgetMinutes > 0
+    ? (totalWorkedMinutes / cycleBudgetMinutes) * 100
+    : 0
+
+  // Config detail line (replaces deleted header + footer)
+  const configParts: string[] = [`${budgetHoursPerMonth}h/month`]
+  if (rolloverEnabled) configParts.push(`${CYCLE_LENGTH}-month cycle`)
+  if (isAdmin && overageRate) {
+    configParts.push(`${formatCurrency(overageRate, currency)}/h overage`)
+  }
+  const configLine = configParts.join(" · ")
+
   return (
-    <div className="ring-foreground/10 overflow-hidden rounded-xl bg-card text-card-foreground shadow-xs ring-1">
+    <div className="overflow-hidden rounded-xl border bg-card text-card-foreground">
       {/* ─── Top section ─── */}
       <div className="flex items-start justify-between px-6 py-5">
         <div>
@@ -77,6 +102,9 @@ export function RetainerCycleDashboard({
               / {cycleBudgetHours} {T.hoursUsedLabel}
             </span>
           </div>
+          <div className="text-muted-foreground mt-1.5 text-xs">
+            {configLine}
+          </div>
         </div>
         <Badge
           variant="outline"
@@ -84,6 +112,16 @@ export function RetainerCycleDashboard({
         >
           {remainingLabel}
         </Badge>
+      </div>
+
+      {/* ─── Progress bar ─── */}
+      <div className="px-6 pb-4">
+        <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+          <div
+            className={cn("h-full rounded-full", isOver ? "bg-red-500" : "bg-emerald-500")}
+            style={{ width: `${Math.min(100, pct)}%` }}
+          />
+        </div>
       </div>
 
       {/* ─── Bottom section: per-month mini-cards (rollover only) ─── */}
@@ -120,6 +158,7 @@ function MiniMonthCard({
   const workedHours = minutesToHours(month.workedMinutes)
   const availableHours = minutesToHours(month.availableMinutes)
   const tag = getStatusTag(month, rolloverEnabled)
+  const badgeProps = getStatusBadgeProps(tag.variant)
 
   // Color the available number: red if less than budget, green if more (carryover bonus)
   const availableColor =
@@ -128,23 +167,6 @@ function MiniMonthCard({
       : month.availableMinutes > budgetMinutes
         ? "text-emerald-600 dark:text-emerald-400"
         : "text-foreground"
-
-  // Badge variant mapping
-  const badgeVariant =
-    tag.variant === "success"
-      ? "outline"
-      : tag.variant === "destructive"
-        ? "destructive"
-        : tag.variant === "warning"
-          ? "secondary"
-          : "outline"
-
-  const badgeClassName =
-    tag.variant === "success"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-      : tag.variant === "warning"
-        ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
-        : ""
 
   // Month short name from yearMonth
   const [year, m] = month.yearMonth.split("-").map(Number)
@@ -157,8 +179,8 @@ function MiniMonthCard({
       <div className="mb-1.5 flex items-center justify-between">
         <span className="text-xs font-medium">{monthName}</span>
         <Badge
-          variant={badgeVariant}
-          className={cn("h-4 px-1.5 text-[10px]", badgeClassName)}
+          variant={badgeProps.variant}
+          className={cn("h-4 px-1.5 text-[10px]", badgeProps.className)}
         >
           {tag.label}
         </Badge>
@@ -169,7 +191,7 @@ function MiniMonthCard({
           {T.hLogged}
         </span>
       </div>
-      <div className="text-muted-foreground mt-1 text-[11px] font-tabular-nums tabular-nums">
+      <div className="text-muted-foreground mt-1 text-[11px] tabular-nums">
         of{" "}
         <span className={availableColor}>{availableHours}</span>
         {" / "}

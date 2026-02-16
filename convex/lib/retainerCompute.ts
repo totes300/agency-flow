@@ -176,10 +176,11 @@ export function getCycleInfo(yearMonth: string, cycleStartDate: string): CycleIn
 export function computeRetainerMonths(
   config: RetainerConfig,
   tasksByMonth: Map<string, TaskRecord[]>,
+  currentYmOverride?: string,
 ): ComputedMonth[] {
   // Determine month range: from startDate month to current month
   const startYm = config.startDate.substring(0, 7);
-  const currentYm = getCurrentYearMonth();
+  const currentYm = currentYmOverride ?? getCurrentYearMonth();
 
   // Also include any months from tasksByMonth that might be outside the range
   let firstMonth = startYm;

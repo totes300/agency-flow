@@ -1,4 +1,5 @@
 import { internalMutation } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
 
 /**
  * Clear all seeded data (clients, projects, tasks, comments, time entries, etc.)
@@ -120,7 +121,7 @@ export const seedTestData = internalMutation({
       { title: "Project kickoff meeting notes", projectId: appId, status: "done", catName: "PM", assignSelf: true },
     ];
 
-    const taskIds: any[] = [];
+    const taskIds: Id<"tasks">[] = [];
     for (const t of taskDefs) {
       const id = await ctx.db.insert("tasks", {
         title: t.title,

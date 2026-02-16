@@ -8,7 +8,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { ChevronRightIcon } from "lucide-react"
-import { T } from "@/lib/retainer-strings"
+import { T, getStatusBadgeProps } from "@/lib/retainer-strings"
 import {
   minutesToHours,
   groupTasksByCategory,
@@ -55,25 +55,8 @@ export function RetainerMonthRow({
   const availableHours = minutesToHours(month.availableMinutes)
   const endBalanceHours = minutesToHours(Math.abs(month.endBalance))
   const tag = getStatusTag(month, rolloverEnabled)
+  const badgeProps = getStatusBadgeProps(tag.variant)
   const categoryGroups = groupTasksByCategory(month.tasks)
-
-  // Badge variant mapping
-  const badgeVariant =
-    tag.variant === "success"
-      ? "outline"
-      : tag.variant === "destructive"
-        ? "destructive"
-        : tag.variant === "warning"
-          ? "secondary"
-          : "outline"
-
-  // Badge color classes for success/warning since shadcn badge doesn't have those variants built-in
-  const badgeClassName =
-    tag.variant === "success"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-      : tag.variant === "warning"
-        ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
-        : ""
 
   // Ending balance color
   const endBalanceColor =
@@ -91,11 +74,6 @@ export function RetainerMonthRow({
         ? "bg-emerald-50/50 dark:bg-emerald-950/30"
         : "bg-muted/30"
 
-  // Cycle badge label (date range like "Jan – Mar")
-  const cycleBadgeLabel = rolloverEnabled && cycleRangeLabel
-    ? cycleRangeLabel
-    : null
-
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <div className="border-b">
@@ -109,16 +87,11 @@ export function RetainerMonthRow({
               )}
             />
             <span className="text-sm font-medium">{month.period}</span>
-            {cycleBadgeLabel && (
-              <span className="text-[10px] font-medium text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-950 px-1.5 py-0.5 rounded">
-                {cycleBadgeLabel}
-              </span>
-            )}
             <span className="text-muted-foreground text-xs tabular-nums">
               {workedHours}{T.hLogged}
             </span>
           </div>
-          <Badge variant={badgeVariant} className={cn("text-[11px]", badgeClassName)}>
+          <Badge variant={badgeProps.variant} className={cn("text-[11px]", badgeProps.className)}>
             {tag.label}
           </Badge>
         </CollapsibleTrigger>

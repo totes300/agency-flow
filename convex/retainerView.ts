@@ -46,15 +46,19 @@ export const getComputedView = query({
       .collect();
 
     // Fetch all time entries for all project tasks and build task records
+    const activeTasks = allTasks.filter((t) => !t.isArchived);
+    const entriesByTask = await Promise.all(
+      activeTasks.map(async (task) => {
+        const entries = await ctx.db
+          .query("timeEntries")
+          .withIndex("by_taskId", (q) => q.eq("taskId", task._id))
+          .collect();
+        return { task, entries };
+      }),
+    );
+
     const taskRecords: TaskRecord[] = [];
-    for (const task of allTasks) {
-      if (task.isArchived) continue;
-
-      const entries = await ctx.db
-        .query("timeEntries")
-        .withIndex("by_taskId", (q) => q.eq("taskId", task._id))
-        .collect();
-
+    for (const { task, entries } of entriesByTask) {
       for (const entry of entries) {
         taskRecords.push({
           taskId: task._id,
