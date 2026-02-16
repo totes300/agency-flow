@@ -207,7 +207,6 @@ export default function ProjectDetailPage({
       {project.billingType === "retainer" && (
         <RetainerProjectDetail
           projectId={projectId}
-          retainerStatus={project.retainerStatus}
           currency={project.clientCurrency}
           isAdmin={isAdmin}
         />

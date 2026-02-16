@@ -28,6 +28,17 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs"
+import { Switch } from "@/components/ui/switch"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { PlusIcon, XIcon, AlertCircleIcon } from "lucide-react"
 
 interface ExistingProject {
@@ -42,6 +53,8 @@ interface ExistingProject {
   }>
   includedHoursPerMonth?: number
   overageRate?: number
+  rolloverEnabled?: boolean
+  startDate?: string
   categoryEstimates?: Array<{
     _id: string
     workCategoryId: string
@@ -97,6 +110,12 @@ export function ProjectFormDialog({
   // Retainer fields
   const [includedHours, setIncludedHours] = useState("")
   const [overageRate, setOverageRate] = useState("")
+  const [rolloverEnabled, setRolloverEnabled] = useState(true)
+  const [startDate, setStartDate] = useState("")
+
+  // Confirmation dialogs
+  const [rolloverConfirmOpen, setRolloverConfirmOpen] = useState(false)
+  const [pendingRolloverValue, setPendingRolloverValue] = useState(false)
 
   // T&M fields
   const [hourlyRate, setHourlyRate] = useState("")
@@ -140,6 +159,8 @@ export function ProjectFormDialog({
       setOverageRate(
         project.overageRate !== undefined ? String(project.overageRate) : "",
       )
+      setRolloverEnabled(project.rolloverEnabled ?? true)
+      setStartDate(project.startDate ?? "")
 
       setHourlyRate(
         project.hourlyRate !== undefined ? String(project.hourlyRate) : "",
@@ -173,6 +194,12 @@ export function ProjectFormDialog({
       setBillingType("fixed")
       setIncludedHours("")
       setOverageRate("")
+      setRolloverEnabled(true)
+      // Default to 1st of current month
+      const now = new Date()
+      setStartDate(
+        `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`,
+      )
       setHourlyRate("")
       setUseCategoryRates(false)
       setTmCategoryRates([])
@@ -248,6 +275,8 @@ export function ProjectFormDialog({
                   parseFloat(includedHours || "0") * 60,
                 ),
                 overageRate: overageRate ? parseFloat(overageRate) : undefined,
+                rolloverEnabled,
+                startDate: startDate || undefined,
               }
             : {}),
           ...(billingType === "t_and_m"
@@ -301,6 +330,8 @@ export function ProjectFormDialog({
                   parseFloat(includedHours || "0") * 60,
                 ),
                 overageRate: overageRate ? parseFloat(overageRate) : undefined,
+                rolloverEnabled,
+                startDate: startDate || undefined,
               }
             : {}),
           ...(billingType === "t_and_m"
@@ -622,6 +653,13 @@ export function ProjectFormDialog({
                     placeholder="e.g., 10"
                     required={billingType === "retainer"}
                   />
+                  {isEditMode && project?.includedHoursPerMonth && includedHours && (
+                    parseFloat(includedHours) * 60 !== project.includedHoursPerMonth
+                  ) && (
+                    <p className="text-muted-foreground text-xs">
+                      This applies to all months. For mid-project rate changes, contact support.
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="overage-rate">
@@ -635,12 +673,51 @@ export function ProjectFormDialog({
                     onChange={(e) => setOverageRate(e.target.value)}
                     placeholder="e.g., 150"
                   />
+                  {isEditMode && project?.overageRate !== undefined && overageRate && (
+                    parseFloat(overageRate) !== project.overageRate
+                  ) && (
+                    <p className="text-muted-foreground text-xs">
+                      This applies to all months. For mid-project rate changes, contact support.
+                    </p>
+                  )}
                 </div>
               </div>
-              <p className="text-muted-foreground text-xs">
-                Rollover window: 3 months. Mid-month starts get full
-                monthly allocation.
-              </p>
+              <div className="space-y-2">
+                <Label htmlFor="start-date">Cycle Start Date</Label>
+                <Input
+                  id="start-date"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+                <p className="text-muted-foreground text-xs">
+                  Determines 3-month cycle alignment for rollover calculation.
+                </p>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="rollover-enabled" className="text-sm font-medium">
+                    Rollover enabled
+                  </Label>
+                  <p className="text-muted-foreground text-xs">
+                    {rolloverEnabled
+                      ? "Hours roll over within 3-month cycles"
+                      : "Each month settles independently"}
+                  </p>
+                </div>
+                <Switch
+                  id="rollover-enabled"
+                  checked={rolloverEnabled}
+                  onCheckedChange={(checked) => {
+                    if (isEditMode && project?.rolloverEnabled !== undefined && checked !== project.rolloverEnabled) {
+                      setPendingRolloverValue(checked)
+                      setRolloverConfirmOpen(true)
+                    } else {
+                      setRolloverEnabled(checked)
+                    }
+                  }}
+                />
+              </div>
             </div>
           )}
 
@@ -784,6 +861,29 @@ export function ProjectFormDialog({
           </DialogFooter>
         </form>
       </DialogContent>
+
+      {/* Rollover change confirmation dialog */}
+      <AlertDialog open={rolloverConfirmOpen} onOpenChange={setRolloverConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Change rollover setting?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will recompute all historical balances and settlement amounts. Continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setRolloverEnabled(pendingRolloverValue)
+                setRolloverConfirmOpen(false)
+              }}
+            >
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }

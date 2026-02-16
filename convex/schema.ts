@@ -73,6 +73,7 @@ export default defineSchema({
     includedHoursPerMonth: v.optional(v.number()), // stored as minutes
     overageRate: v.optional(v.number()),
     startDate: v.optional(v.string()), // YYYY-MM-DD, for retainers
+    rolloverEnabled: v.optional(v.boolean()), // retainer: hours roll over within 3-month cycles
     // T&M-specific fields
     hourlyRate: v.optional(v.number()), // single flat rate
     tmCategoryRates: v.optional(
@@ -199,10 +200,14 @@ export default defineSchema({
   // ── Timesheets ─────────────────────────────────────────────────────
   timesheets: defineTable({
     clientId: v.id("clients"),
-    period: v.string(), // YYYY-MM
+    period: v.optional(v.string()), // YYYY-MM (legacy docs may lack this)
+    projectId: v.optional(v.id("projects")),
+    periodStart: v.optional(v.string()), // YYYY-MM-DD
+    periodEnd: v.optional(v.string()), // YYYY-MM-DD
     status: timesheetStatus,
     generatedAt: v.number(), // timestamp
     data: v.optional(v.any()), // frozen JSON blob for sent/paid (#16)
+    draftOverrides: v.optional(v.any()), // per-task rate/hours overrides
   })
     .index("by_clientId", ["clientId"])
     .index("by_clientId_period", ["clientId", "period"]),
