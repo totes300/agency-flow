@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
-import { requireAuth } from "./lib/permissions";
+import { requireAuth, isAdmin } from "./lib/permissions";
 import { userRole } from "./schema";
 
 /**
@@ -74,9 +74,21 @@ export const deleteFromClerk = internalMutation({
 export const listAll = query({
   args: {},
   handler: async (ctx) => {
-    await requireAuth(ctx);
+    const currentUser = await requireAuth(ctx);
+    const admin = isAdmin(currentUser);
     const all = await ctx.db.query("users").collect();
-    return all.filter((u) => !u.isAnonymized);
+    const active = all.filter((u) => !u.isAnonymized);
+
+    if (admin) return active;
+
+    // Non-admins only see public fields
+    return active.map((u) => ({
+      _id: u._id,
+      _creationTime: u._creationTime,
+      name: u.name,
+      avatarUrl: u.avatarUrl,
+      role: u.role,
+    }));
   },
 });
 

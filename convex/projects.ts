@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireAdmin, requireAuth, isAdmin } from "./lib/permissions";
+import { stopUserTimer } from "./lib/timer-helpers";
 import { billingType, retainerStatus } from "./schema";
 
 /**
@@ -31,7 +32,8 @@ export const listByClient = query({
 export const listAll = query({
   args: { includeArchived: v.optional(v.boolean()) },
   handler: async (ctx, { includeArchived }) => {
-    await requireAuth(ctx);
+    const user = await requireAuth(ctx);
+    const admin = isAdmin(user);
 
     const allProjects = await ctx.db.query("projects").collect();
     const projects = includeArchived
@@ -43,9 +45,25 @@ export const listAll = query({
       projects.map(async (project) => {
         const client = await ctx.db.get(project.clientId);
         return {
-          ...project,
+          _id: project._id,
+          _creationTime: project._creationTime,
+          clientId: project.clientId,
+          name: project.name,
+          billingType: project.billingType,
+          isArchived: project.isArchived,
+          retainerStatus: project.retainerStatus,
+          startDate: project.startDate,
+          lastInvoicedAt: project.lastInvoicedAt,
+          defaultAssignees: project.defaultAssignees,
           clientName: client?.name ?? "Unknown",
           clientCurrency: client?.currency ?? "USD",
+          // Billing-sensitive fields — admin only
+          ...(admin ? {
+            hourlyRate: project.hourlyRate,
+            overageRate: project.overageRate,
+            tmCategoryRates: project.tmCategoryRates,
+            includedHoursPerMonth: project.includedHoursPerMonth,
+          } : {}),
         };
       }),
     );
@@ -60,7 +78,7 @@ export const get = query({
   handler: async (ctx, { id }) => {
     const user = await requireAuth(ctx);
     const project = await ctx.db.get(id);
-    if (!project) throw new Error("Project not found");
+    if (!project) return null;
 
     const client = await ctx.db.get(project.clientId);
 
@@ -181,14 +199,31 @@ export const get = query({
       }),
     );
 
+    const admin = isAdmin(user);
+
     return {
-      ...project,
+      _id: project._id,
+      _creationTime: project._creationTime,
+      clientId: project.clientId,
+      name: project.name,
+      billingType: project.billingType,
+      isArchived: project.isArchived,
+      retainerStatus: project.retainerStatus,
+      startDate: project.startDate,
+      lastInvoicedAt: project.lastInvoicedAt,
+      defaultAssignees: project.defaultAssignees,
       clientName: client?.name ?? "Unknown",
       clientCurrency: client?.currency ?? "USD",
-      categoryEstimates,
-      tmCategoryRates: isAdmin(user) ? enrichedTmCategoryRates ?? project.tmCategoryRates : undefined,
+      categoryEstimates: admin ? categoryEstimates : [],
       totalMinutes,
       effectiveAssignees,
+      // Billing-sensitive fields — admin only
+      ...(admin ? {
+        hourlyRate: project.hourlyRate,
+        overageRate: project.overageRate,
+        tmCategoryRates: enrichedTmCategoryRates ?? project.tmCategoryRates,
+        includedHoursPerMonth: project.includedHoursPerMonth,
+      } : {}),
     };
   },
 });
@@ -410,32 +445,13 @@ export const archive = mutation({
       }
     }
 
-    // Auto-stop running timers
+    // Auto-stop running timers on tasks in this project
     const allUsers = await ctx.db.query("users").collect();
     for (const user of allUsers) {
       if (user.timerTaskId && user.timerStartedAt) {
         const timerTask = await ctx.db.get(user.timerTaskId);
         if (timerTask?.projectId === id) {
-          const now = Date.now();
-          const elapsedMs = now - user.timerStartedAt;
-          const elapsedMinutes = Math.ceil(elapsedMs / 60000);
-
-          if (elapsedMinutes > 0) {
-            const today = new Date(now);
-            const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-            await ctx.db.insert("timeEntries", {
-              taskId: user.timerTaskId,
-              userId: user._id,
-              date: dateStr,
-              durationMinutes: elapsedMinutes,
-              method: "timer",
-            });
-          }
-
-          await ctx.db.patch(user._id, {
-            timerTaskId: undefined,
-            timerStartedAt: undefined,
-          });
+          await stopUserTimer(ctx, user);
         }
       }
     }
@@ -449,7 +465,8 @@ export const archive = mutation({
 export const listAllWithMetrics = query({
   args: { includeArchived: v.optional(v.boolean()) },
   handler: async (ctx, { includeArchived }) => {
-    await requireAuth(ctx);
+    const user = await requireAuth(ctx);
+    const admin = isAdmin(user);
 
     const allProjects = await ctx.db.query("projects").collect();
     const projects = includeArchived
@@ -640,7 +657,7 @@ export const listAllWithMetrics = query({
 
       const activeTaskCount = tasks.filter((t) => !t.isArchived).length;
 
-      return {
+      const base = {
         _id: project._id,
         _creationTime: project._creationTime,
         name: project.name,
@@ -650,8 +667,17 @@ export const listAllWithMetrics = query({
         clientId: project.clientId,
         clientName: client?.name ?? "Unknown",
         clientCurrency: client?.currency ?? "USD",
-        lastInvoicedAt: project.lastInvoicedAt ?? null,
         totalMinutes,
+        activeTaskCount,
+        healthStatus,
+        lastActivityDate,
+      };
+
+      if (!admin) return base;
+
+      return {
+        ...base,
+        lastInvoicedAt: project.lastInvoicedAt ?? null,
         currentMonthMinutes,
         uninvoicedMinutes,
         budgetMinutes,
@@ -659,9 +685,6 @@ export const listAllWithMetrics = query({
         rolloverMinutes,
         overageMinutes,
         categoryBreakdown,
-        lastActivityDate,
-        healthStatus,
-        activeTaskCount,
       };
     });
   },

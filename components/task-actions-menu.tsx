@@ -83,7 +83,7 @@ export function TaskActionsMenu({
       await duplicateTask({ id: taskId })
       toast.success("Task duplicated")
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 
@@ -109,7 +109,7 @@ export function TaskActionsMenu({
       await deleteTask({ id: taskId })
       toast.success("Task deleted")
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 
@@ -131,7 +131,7 @@ export function TaskActionsMenu({
           <Button
             variant="ghost"
             size="icon"
-            className={`size-8 ${alwaysVisible ? "" : "opacity-0 group-hover:opacity-100"} data-[state=open]:opacity-100`}
+            className={`size-8 ${alwaysVisible ? "" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"} data-[state=open]:opacity-100`}
             onClick={(e) => e.stopPropagation()}
           >
             <MoreHorizontalIcon className="size-4" />
@@ -239,7 +239,7 @@ function MoveToProjectPopover({
       await moveTask({ id: taskId, projectId })
       toast.success("Task moved")
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 

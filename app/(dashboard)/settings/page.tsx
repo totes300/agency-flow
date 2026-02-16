@@ -82,7 +82,7 @@ function WorkCategoriesTab() {
       const id = await createCategory({ name })
       setNewRowId(id)
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 
@@ -92,7 +92,7 @@ function WorkCategoriesTab() {
     try {
       await renameCategory({ id, name: trimmed })
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 
@@ -101,7 +101,7 @@ function WorkCategoriesTab() {
       await archiveCategory({ id })
       toast.success("Category archived")
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 
@@ -110,7 +110,7 @@ function WorkCategoriesTab() {
       await unarchiveCategory({ id })
       toast.success("Category restored")
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 
@@ -125,7 +125,7 @@ function WorkCategoriesTab() {
       })
       toast.success("Default member updated")
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 
@@ -135,7 +135,7 @@ function WorkCategoriesTab() {
     try {
       await setDefaultCostRate({ id, rate })
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 
@@ -145,7 +145,7 @@ function WorkCategoriesTab() {
     try {
       await setDefaultBillRate({ id, rate })
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 
@@ -154,7 +154,7 @@ function WorkCategoriesTab() {
       await seedCategories({})
       toast.success("Default categories created")
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 
@@ -304,7 +304,7 @@ function GeneralTab() {
       await updateSettings({ defaultHourlyRate: rate })
       toast.success("Default hourly rate saved")
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 

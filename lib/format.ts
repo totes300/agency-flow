@@ -39,14 +39,38 @@ export function formatCurrency(
  * Format a date string (YYYY-MM-DD) for display using browser locale.
  * Per CLAUDE.md formatting rule #2.
  */
+const dateFormatterCache = new Map<string, Intl.DateTimeFormat>();
+
 export function formatDate(dateString: string, locale?: string): string {
+  const key = locale ?? "default";
+  let formatter = dateFormatterCache.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale ?? undefined, {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    dateFormatterCache.set(key, formatter);
+  }
   const [year, month, day] = dateString.split("-").map(Number);
   const date = new Date(year, month - 1, day);
-  return new Intl.DateTimeFormat(locale ?? undefined, {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
+  return formatter.format(date);
+}
+
+/**
+ * Format elapsed time from a start timestamp to now as h:mm:ss or m:ss.
+ * Used by the live-ticking timer display.
+ */
+export function formatElapsed(startedAt: number, now: number): string {
+  const diff = Math.max(0, now - startedAt)
+  const totalSeconds = Math.floor(diff / 1000)
+  const h = Math.floor(totalSeconds / 3600)
+  const m = Math.floor((totalSeconds % 3600) / 60)
+  const s = totalSeconds % 60
+  if (h > 0) {
+    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+  }
+  return `${m}:${String(s).padStart(2, "0")}`
 }
 
 /**

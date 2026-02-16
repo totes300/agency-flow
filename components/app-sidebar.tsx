@@ -29,7 +29,13 @@ import {
   ZapIcon,
 } from "lucide-react"
 
-const mainNav = [
+const memberNav = [
+  { title: "Tasks", url: "/tasks", icon: <CheckSquareIcon /> },
+  { title: "Today", url: "/today", icon: <SunIcon /> },
+  { title: "My Time", url: "/my-time", icon: <ClockIcon /> },
+]
+
+const adminMainNav = [
   { title: "Tasks", url: "/tasks", icon: <CheckSquareIcon /> },
   { title: "Today", url: "/today", icon: <SunIcon /> },
   { title: "Clients", url: "/clients", icon: <UsersIcon /> },
@@ -68,7 +74,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={mainNav} />
+        <NavMain items={isAdmin ? adminMainNav : memberNav} />
         {isAdmin && (
           <>
             <SidebarSeparator />

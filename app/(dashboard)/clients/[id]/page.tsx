@@ -90,12 +90,26 @@ export default function ClientDetailPage({
     return <p className="text-muted-foreground">Admin access required.</p>
   }
 
-  if (!client) {
+  if (client === undefined) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-4 w-72" />
         <Skeleton className="h-64 w-full" />
+      </div>
+    )
+  }
+
+  if (client === null) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <h2 className="text-lg font-semibold">Client not found</h2>
+        <p className="text-muted-foreground mt-1 text-sm">
+          This client may have been deleted or the link is invalid.
+        </p>
+        <Button variant="outline" className="mt-4" onClick={() => router.push("/clients")}>
+          Back to Clients
+        </Button>
       </div>
     )
   }
@@ -115,7 +129,7 @@ export default function ClientDetailPage({
       await unarchiveProject({ id: projectId })
       toast.success("Project restored")
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 

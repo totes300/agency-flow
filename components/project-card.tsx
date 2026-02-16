@@ -27,15 +27,15 @@ interface ProjectCardProps {
     billingType: string
     isArchived: boolean
     retainerStatus?: string
-    lastInvoicedAt: string | null
+    lastInvoicedAt?: string | null
     totalMinutes: number
-    currentMonthMinutes: number
-    uninvoicedMinutes: number
-    budgetMinutes: number | null
-    burnPercent: number | null
-    rolloverMinutes: number
-    overageMinutes: number
-    categoryBreakdown: CategoryBreakdownItem[] | null
+    currentMonthMinutes?: number
+    uninvoicedMinutes?: number
+    budgetMinutes?: number | null
+    burnPercent?: number | null
+    rolloverMinutes?: number
+    overageMinutes?: number
+    categoryBreakdown?: CategoryBreakdownItem[] | null
     lastActivityDate: string | null
     healthStatus: string
     activeTaskCount: number
@@ -136,7 +136,7 @@ function FixedMetrics({ project }: ProjectCardProps) {
           }
         />
       )}
-      {project.burnPercent !== null && project.budgetMinutes && (
+      {project.burnPercent != null && project.budgetMinutes && (
         <div className="space-y-1">
           <DataRow label="Burn" value={`${project.burnPercent}%`} />
           <BurnProgress percent={project.burnPercent} className="h-1.5" />
@@ -148,6 +148,12 @@ function FixedMetrics({ project }: ProjectCardProps) {
 }
 
 function RetainerMetrics({ project }: ProjectCardProps) {
+  const currentMonthMinutes = project.currentMonthMinutes ?? 0
+  const rolloverMinutes = project.rolloverMinutes ?? 0
+  const overageMinutes = project.overageMinutes ?? 0
+  const budgetMinutes = project.budgetMinutes ?? null
+  const burnPercent = project.burnPercent ?? null
+
   return (
     <div className="space-y-1.5">
       <DataRow
@@ -163,29 +169,29 @@ function RetainerMetrics({ project }: ProjectCardProps) {
         label="This Month"
         value={
           <span>
-            {formatDuration(project.currentMonthMinutes)}
-            {project.budgetMinutes
-              ? ` / ${formatDuration(project.budgetMinutes)}`
+            {formatDuration(currentMonthMinutes)}
+            {budgetMinutes
+              ? ` / ${formatDuration(budgetMinutes)}`
               : ""}
           </span>
         }
       />
-      {project.rolloverMinutes > 0 && (
+      {rolloverMinutes > 0 && (
         <p className="text-muted-foreground/70 text-right text-[10px]">
-          incl. {formatDuration(project.rolloverMinutes)} rollover
+          incl. {formatDuration(rolloverMinutes)} rollover
         </p>
       )}
-      {project.overageMinutes > 0 && (
+      {overageMinutes > 0 && (
         <DataRow
           label="Overage"
-          value={formatDuration(project.overageMinutes)}
+          value={formatDuration(overageMinutes)}
           valueClassName="text-red-600 dark:text-red-400"
         />
       )}
-      {project.burnPercent !== null && project.budgetMinutes && (
+      {burnPercent !== null && budgetMinutes && (
         <div className="space-y-1">
-          <DataRow label="Burn" value={`${project.burnPercent}%`} />
-          <BurnProgress percent={project.burnPercent} className="h-1.5" />
+          <DataRow label="Burn" value={`${burnPercent}%`} />
+          <BurnProgress percent={burnPercent} className="h-1.5" />
         </div>
       )}
       <DataRow label="Tasks" value={taskCountLabel(project.activeTaskCount)} />
@@ -194,13 +200,15 @@ function RetainerMetrics({ project }: ProjectCardProps) {
 }
 
 function TandMMetrics({ project }: ProjectCardProps) {
+  const uninvoicedMinutes = project.uninvoicedMinutes ?? 0
+
   return (
     <div className="space-y-1.5">
       <DataRow
         label="Unbilled"
-        value={formatDuration(project.uninvoicedMinutes)}
+        value={formatDuration(uninvoicedMinutes)}
         valueClassName={
-          project.uninvoicedMinutes > 0
+          uninvoicedMinutes > 0
             ? "text-amber-600 dark:text-amber-400"
             : undefined
         }

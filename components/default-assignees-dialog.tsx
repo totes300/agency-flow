@@ -99,7 +99,7 @@ export function DefaultAssigneesDialog({
       setAddingCategory(false)
       toast.success("Category created")
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 
@@ -120,7 +120,7 @@ export function DefaultAssigneesDialog({
       onOpenChange(false)
       toast.success("Default assignees saved")
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 

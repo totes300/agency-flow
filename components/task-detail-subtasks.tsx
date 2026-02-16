@@ -47,7 +47,7 @@ export function TaskDetailSubtasks({
       setNewTitle("")
       inputRef.current?.focus()
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     } finally {
       setIsCreating(false)
     }
@@ -69,10 +69,10 @@ export function TaskDetailSubtasks({
       try {
         await updateStatus({
           id: subtask._id as Id<"tasks">,
-          status: newStatus as any,
+          status: newStatus as "inbox" | "done",
         })
       } catch (err: unknown) {
-        toast.error((err as Error).message)
+        toast.error(err instanceof Error ? err.message : "Something went wrong")
       }
     },
     [updateStatus],
@@ -86,7 +86,7 @@ export function TaskDetailSubtasks({
           direction,
         })
       } catch (err: unknown) {
-        toast.error((err as Error).message)
+        toast.error(err instanceof Error ? err.message : "Something went wrong")
       }
     },
     [swapOrder],
@@ -120,7 +120,7 @@ export function TaskDetailSubtasks({
               >
                 {subtask.title}
               </span>
-              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                 <Button
                   variant="ghost"
                   size="icon"

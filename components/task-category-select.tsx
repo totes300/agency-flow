@@ -61,7 +61,7 @@ export function TaskCategorySelect({
           // For now we just show a toast if there's a suggestion
         }
       } catch (err: unknown) {
-        toast.error((err as Error).message)
+        toast.error(err instanceof Error ? err.message : "Something went wrong")
       }
     },
     [taskId, projectId, updateTask],

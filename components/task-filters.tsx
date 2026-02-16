@@ -33,14 +33,7 @@ import { CheckIcon, XIcon, FilterIcon, CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getStatusConfig } from "@/components/task-status-select"
 
-const STATUS_OPTIONS = [
-  { value: "inbox", label: "Inbox" },
-  { value: "today", label: "Today" },
-  { value: "next_up", label: "Next Up" },
-  { value: "admin_review", label: "Review" },
-  { value: "stuck", label: "Stuck" },
-  { value: "done", label: "Done" },
-] as const
+import { STATUS_OPTIONS } from "@/lib/constants"
 
 const GROUP_OPTIONS = [
   { value: "none", label: "No grouping" },

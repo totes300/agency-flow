@@ -26,13 +26,15 @@ import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { XIcon, ClockIcon, ActivityIcon } from "lucide-react"
+import type { EnrichedTask } from "@/lib/types"
 import { TaskDetailMetadata } from "@/components/task-detail-metadata"
 import { TaskDetailSubtasks } from "@/components/task-detail-subtasks"
 import { TaskProjectSelector } from "@/components/task-project-selector"
 import { TiptapEditor } from "@/components/tiptap-editor"
-import { TimerButton } from "@/components/timer-button"
+import { TimerCapsule } from "@/components/timer-button"
 import { TaskDetailAttachments } from "@/components/task-detail-attachments"
-import { AddTimeForm } from "@/components/add-time-form"
+import { AddTimeSection } from "@/components/add-time-section"
+import { TimeEntryList } from "@/components/time-entry-list"
 import { TaskDetailComments } from "@/components/task-detail-comments"
 
 export function TaskDetailDialog({
@@ -76,7 +78,7 @@ export function TaskDetailDialog({
         try {
           await updateTask({ id: taskId, title: value.trim() })
         } catch (err: unknown) {
-          toast.error((err as Error).message)
+          toast.error(err instanceof Error ? err.message : "Something went wrong")
         }
       }, 1000)
     },
@@ -90,7 +92,7 @@ export function TaskDetailDialog({
       try {
         await updateTask({ id: taskId, title: title.trim() })
       } catch (err: unknown) {
-        toast.error((err as Error).message)
+        toast.error(err instanceof Error ? err.message : "Something went wrong")
       }
     }
   }, [taskId, title, task?.title, updateTask])
@@ -102,7 +104,7 @@ export function TaskDetailDialog({
         try {
           await updateDescription({ id: taskId, description: json })
         } catch (err: unknown) {
-          toast.error((err as Error).message)
+          toast.error(err instanceof Error ? err.message : "Something went wrong")
         }
       },
       [taskId, updateDescription],
@@ -181,7 +183,7 @@ export function TaskDetailDialog({
 
 // ── Desktop Header Bar (minimal — stats + close) ────────────────────────
 
-function DesktopHeaderBar({ task }: { task: Record<string, any> }) {
+function DesktopHeaderBar({ task }: { task: EnrichedTask }) {
   const totalMinutes = (task.totalMinutes ?? 0) + (task.subtaskTotalMinutes ?? 0)
 
   return (
@@ -197,16 +199,13 @@ function DesktopHeaderBar({ task }: { task: Record<string, any> }) {
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Stats — right side */}
-      <span className="flex items-center gap-1.5" title="Total time logged">
-        <ClockIcon className="size-3.5" aria-hidden="true" />
-        <span className="font-medium tabular-nums text-foreground">
-          {totalMinutes > 0 ? formatDuration(totalMinutes) : "0m"}
-        </span>
-        {task.estimate > 0 && (
-          <span className="tabular-nums">/ {formatDuration(task.estimate)}</span>
-        )}
-      </span>
+      {/* Timer capsule — right side */}
+      <TimerCapsule
+        taskId={task._id as Id<"tasks">}
+        taskTitle={task.title}
+        hasProject={!!task.projectId}
+        totalMinutes={totalMinutes}
+      />
       {task._creationTime && (
         <span className="flex items-center gap-1.5" title="Last activity">
           <ActivityIcon className="size-3.5" aria-hidden="true" />
@@ -225,7 +224,7 @@ function DesktopHeaderBar({ task }: { task: Record<string, any> }) {
 
 // ── Mobile Header (minimal) ─────────────────────────────────────────────
 
-function MobileHeader({ task }: { task: Record<string, any> }) {
+function MobileHeader({ task }: { task: EnrichedTask }) {
   const totalMinutes = (task.totalMinutes ?? 0) + (task.subtaskTotalMinutes ?? 0)
 
   return (
@@ -237,13 +236,12 @@ function MobileHeader({ task }: { task: Record<string, any> }) {
         currentClientName={task.clientName}
       />
       <div className="flex-1" />
-      <span className="flex items-center gap-1">
-        <ClockIcon className="size-3" aria-hidden="true" />
-        <span className="font-medium text-foreground tabular-nums">
-          {totalMinutes > 0 ? formatDuration(totalMinutes) : "0m"}
-        </span>
-        {task.estimate > 0 && <span className="tabular-nums">/ {formatDuration(task.estimate)}</span>}
-      </span>
+      <TimerCapsule
+        taskId={task._id as Id<"tasks">}
+        taskTitle={task.title}
+        hasProject={!!task.projectId}
+        totalMinutes={totalMinutes}
+      />
       {task._creationTime && (
         <span className="flex items-center gap-1">
           <ActivityIcon className="size-3" aria-hidden="true" />
@@ -271,7 +269,7 @@ function DesktopContent({
   onDescriptionUpdate,
   currentUserId,
 }: {
-  task: Record<string, any>
+  task: EnrichedTask
   isAdmin: boolean
   title: string
   onTitleChange: (value: string) => void
@@ -289,20 +287,13 @@ function DesktopContent({
       <ScrollArea className="flex-[13] border-r">
         <div className="p-5 space-y-4">
 
-          {/* Title + timer + metadata — tighter grouping */}
+          {/* Title + metadata */}
           <div className="space-y-1">
-            <div className="flex items-start gap-2">
-              <TimerButton
-                taskId={task._id as Id<"tasks">}
-                taskTitle={task.title}
-                hasProject={!!task.projectId}
-              />
-              <AutoResizeTitle
-                value={title}
-                onChange={onTitleChange}
-                onBlur={onTitleBlur}
-              />
-            </div>
+            <AutoResizeTitle
+              value={title}
+              onChange={onTitleChange}
+              onBlur={onTitleBlur}
+            />
             <TaskDetailMetadata task={task} isAdmin={isAdmin} />
           </div>
 
@@ -330,7 +321,7 @@ function DesktopContent({
           {/* Add Time */}
           <div>
             <h3 className="text-xs font-medium text-muted-foreground mb-2">Add Time</h3>
-            <AddTimeForm
+            <AddTimeSection
               taskId={task._id as Id<"tasks">}
               hasProject={!!task.projectId}
             />
@@ -339,9 +330,10 @@ function DesktopContent({
           {/* Time Entries */}
           <div>
             <h3 className="text-xs font-medium text-muted-foreground mb-2">Time Entries</h3>
-            <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-              Time entry list — wired in Session 6
-            </div>
+            <TimeEntryList
+              taskId={task._id as Id<"tasks">}
+              initialCount={5}
+            />
           </div>
         </div>
       </ScrollArea>
@@ -408,7 +400,7 @@ function MobileContent({
   onDescriptionUpdate,
   currentUserId,
 }: {
-  task: Record<string, any>
+  task: EnrichedTask
   isAdmin: boolean
   title: string
   onTitleChange: (value: string) => void
@@ -422,19 +414,12 @@ function MobileContent({
 
   return (
     <div className="space-y-4">
-      {/* Title + timer */}
-      <div className="flex items-start gap-2">
-        <TimerButton
-          taskId={task._id as Id<"tasks">}
-          taskTitle={task.title}
-          hasProject={!!task.projectId}
-        />
-        <AutoResizeTitle
-          value={title}
-          onChange={onTitleChange}
-          onBlur={onTitleBlur}
-        />
-      </div>
+      {/* Title */}
+      <AutoResizeTitle
+        value={title}
+        onChange={onTitleChange}
+        onBlur={onTitleBlur}
+      />
 
       {/* Properties */}
       <TaskDetailMetadata task={task} isAdmin={isAdmin} />
@@ -474,7 +459,7 @@ function MobileContent({
       {/* Add Time */}
       <div>
         <h3 className="text-xs font-medium text-muted-foreground mb-2">Add Time</h3>
-        <AddTimeForm
+        <AddTimeSection
           taskId={task._id as Id<"tasks">}
           hasProject={!!task.projectId}
         />
@@ -483,9 +468,10 @@ function MobileContent({
       {/* Time Entries */}
       <div>
         <h3 className="text-xs font-medium text-muted-foreground mb-2">Time Entries</h3>
-        <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-          Time entry list — wired in Session 6
-        </div>
+        <TimeEntryList
+          taskId={task._id as Id<"tasks">}
+          initialCount={5}
+        />
       </div>
 
       {/* Activity / Comments */}

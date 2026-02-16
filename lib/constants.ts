@@ -1,3 +1,21 @@
+export const STATUS_OPTIONS = [
+  { value: "inbox", label: "Inbox" },
+  { value: "today", label: "Today" },
+  { value: "next_up", label: "Next Up" },
+  { value: "admin_review", label: "Review" },
+  { value: "stuck", label: "Stuck" },
+  { value: "done", label: "Done" },
+] as const
+
+export function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2)
+}
+
 export const BILLING_TYPE_LABELS: Record<string, string> = {
   fixed: "Fixed",
   retainer: "Retainer",

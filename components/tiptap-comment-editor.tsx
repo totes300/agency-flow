@@ -47,6 +47,8 @@ class MentionList {
     this.element = document.createElement("div")
     this.element.className =
       "z-50 rounded-md border bg-popover p-1 text-popover-foreground shadow-md max-h-48 overflow-y-auto"
+    this.element.setAttribute("role", "listbox")
+    this.element.setAttribute("aria-label", "Mention suggestions")
     this.render()
   }
 
@@ -64,6 +66,8 @@ class MentionList {
       btn.className = `flex w-full items-center rounded-sm px-2 py-1.5 text-sm outline-none ${
         index === this.selectedIndex ? "bg-accent text-accent-foreground" : ""
       }`
+      btn.setAttribute("role", "option")
+      btn.setAttribute("aria-selected", String(index === this.selectedIndex))
       btn.textContent = item.name
       btn.addEventListener("click", () => {
         this.command({ id: item._id, label: item.name })
@@ -111,6 +115,7 @@ export function TiptapCommentEditor({ onSubmit, disabled }: TiptapCommentEditorP
   usersRef.current = users
 
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit.configure({
         heading: false,
@@ -178,6 +183,9 @@ export function TiptapCommentEditor({ onSubmit, disabled }: TiptapCommentEditorP
     editorProps: {
       attributes: {
         class: "prose prose-sm max-w-none focus:outline-none min-h-[60px] px-3 py-2",
+        role: "textbox",
+        "aria-label": "Write a comment",
+        "aria-multiline": "true",
       },
       handleKeyDown: (_view, event) => {
         if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {

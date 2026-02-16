@@ -3,6 +3,8 @@ import { mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { requireAuth, isAdmin } from "./lib/permissions";
 
+const MAX_TIMER_MINUTES = 16 * 60; // 16 hours
+
 export const getStatus = query({
   args: {},
   handler: async (ctx) => {
@@ -60,7 +62,7 @@ export const start = mutation({
 
       const now = Date.now();
       const elapsedMs = now - user.timerStartedAt;
-      const elapsedMinutes = Math.ceil(elapsedMs / 60000);
+      const elapsedMinutes = Math.min(Math.ceil(elapsedMs / 60000), MAX_TIMER_MINUTES);
       previousElapsedMinutes = elapsedMinutes;
 
       if (elapsedMinutes > 0) {
@@ -109,7 +111,7 @@ export const stop = mutation({
 
     const now = Date.now();
     const elapsedMs = now - user.timerStartedAt;
-    const elapsedMinutes = Math.ceil(elapsedMs / 60000);
+    const elapsedMinutes = Math.min(Math.ceil(elapsedMs / 60000), MAX_TIMER_MINUTES);
 
     const taskId = user.timerTaskId;
     const task = await ctx.db.get(taskId);

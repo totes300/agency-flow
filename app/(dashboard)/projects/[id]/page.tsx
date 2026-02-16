@@ -2,6 +2,7 @@
 
 import { use, useState } from "react"
 import { useQuery, useMutation } from "convex/react"
+import { useRouter } from "next/navigation"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -50,6 +51,7 @@ export default function ProjectDetailPage({
   const { id } = use(params)
   const projectId = id as Id<"projects">
 
+  const router = useRouter()
   const me = useQuery(api.users.getMe)
   const project = useQuery(
     api.projects.get,
@@ -62,12 +64,26 @@ export default function ProjectDetailPage({
   const unarchiveProject = useMutation(api.projects.unarchive)
   const { execute: undoExecute } = useUndoAction()
 
-  if (!project) {
+  if (project === undefined) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-4 w-72" />
         <Skeleton className="h-64 w-full" />
+      </div>
+    )
+  }
+
+  if (project === null) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <h2 className="text-lg font-semibold">Project not found</h2>
+        <p className="text-muted-foreground mt-1 text-sm">
+          This project may have been deleted or the link is invalid.
+        </p>
+        <Button variant="outline" className="mt-4" onClick={() => router.push("/projects")}>
+          Back to Projects
+        </Button>
       </div>
     )
   }
@@ -89,7 +105,7 @@ export default function ProjectDetailPage({
       await unarchiveProject({ id: projectId })
     } catch (err: unknown) {
       const { toast } = await import("sonner")
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 

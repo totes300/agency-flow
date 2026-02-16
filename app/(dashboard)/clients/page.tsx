@@ -105,7 +105,7 @@ export default function ClientsPage() {
       await unarchiveClient({ id: clientId })
       toast.success("Client restored")
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 
@@ -115,7 +115,7 @@ export default function ClientsPage() {
       await removeClient({ id: deleteId })
       toast.success("Client permanently deleted")
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     } finally {
       setDeleteConfirmOpen(false)
       setDeleteId(null)

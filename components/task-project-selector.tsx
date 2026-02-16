@@ -69,7 +69,7 @@ export function TaskProjectSelector({
     try {
       await updateTask({ id: taskId, projectId })
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 

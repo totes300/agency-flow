@@ -232,6 +232,7 @@ export function ProjectFormDialog({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (submitting) return
     setSubmitting(true)
 
     if (!clientId) return
@@ -346,7 +347,7 @@ export function ProjectFormDialog({
 
       onOpenChange(false)
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     } finally {
       setSubmitting(false)
     }
@@ -368,7 +369,7 @@ export function ProjectFormDialog({
                 await seedCategories({})
                 toast.success("Default categories created")
               } catch (err: unknown) {
-                toast.error((err as Error).message)
+                toast.error(err instanceof Error ? err.message : "Something went wrong")
               }
             }}
           >

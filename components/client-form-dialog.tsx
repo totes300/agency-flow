@@ -77,6 +77,7 @@ export function ClientFormDialog({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (submitting) return
     setSubmitting(true)
 
     try {
@@ -100,7 +101,7 @@ export function ClientFormDialog({
       }
       onOpenChange(false)
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     } finally {
       setSubmitting(false)
     }

@@ -5,7 +5,7 @@ import { ConvexClientProvider } from "@/components/convex-client-provider";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Agency Flow",
@@ -21,8 +21,10 @@ export default function RootLayout({
     <html lang="en" className={inter.variable}>
       <body className="antialiased">
         <ClerkProvider>
-          <ConvexClientProvider>{children}</ConvexClientProvider>
-          <Toaster />
+          <ConvexClientProvider>
+            {children}
+            <Toaster />
+          </ConvexClientProvider>
         </ClerkProvider>
       </body>
     </html>

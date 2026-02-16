@@ -2,45 +2,24 @@
 
 import { useQuery, useMutation, useConvexAuth } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import { useState, useEffect, useCallback } from "react"
+import { useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Square, Clock } from "lucide-react"
+import { Square, ClipboardList } from "lucide-react"
 import { toast } from "sonner"
-import { useIsMobile } from "@/hooks/use-mobile"
+import { formatElapsed } from "@/lib/format"
+import { useTimerTick } from "@/hooks/use-timer-tick"
 
-export function TimerIndicator() {
+/**
+ * Floating timer widget — bottom-right corner, only visible when timer is running.
+ * Replaces the old header-based TimerIndicator.
+ */
+export function FloatingTimerWidget() {
   const { isAuthenticated } = useConvexAuth()
   const status = useQuery(api.timer.getStatus, isAuthenticated ? {} : "skip")
   const stopTimer = useMutation(api.timer.stop)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const isMobile = useIsMobile()
-  const [elapsed, setElapsed] = useState("")
-
-  useEffect(() => {
-    if (!status?.isRunning || !status.startedAt) {
-      setElapsed("")
-      return
-    }
-
-    const update = () => {
-      const diff = Math.max(0, Date.now() - status.startedAt!)
-      const totalSeconds = Math.floor(diff / 1000)
-      const h = Math.floor(totalSeconds / 3600)
-      const m = Math.floor((totalSeconds % 3600) / 60)
-      const s = totalSeconds % 60
-      if (h > 0) {
-        setElapsed(`${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`)
-      } else {
-        setElapsed(`${m}:${String(s).padStart(2, "0")}`)
-      }
-    }
-
-    update()
-    const interval = setInterval(update, 1000)
-    return () => clearInterval(interval)
-  }, [status?.isRunning, status?.startedAt])
 
   const handleStop = useCallback(async () => {
     try {
@@ -56,7 +35,7 @@ export function TimerIndicator() {
         })
       }
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }, [stopTimer])
 
@@ -69,38 +48,42 @@ export function TimerIndicator() {
 
   if (!status?.isRunning) return null
 
-  // Mobile: fixed bottom bar
-  if (isMobile) {
-    return (
-      <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 py-2">
-        <div className="flex items-center gap-3">
-          <Clock className="size-4 text-primary shrink-0 animate-pulse" />
-          <button onClick={handleTaskClick} className="flex-1 min-w-0 text-left">
+  return (
+    <div role="status" aria-label="Active timer" className="fixed bottom-6 right-6 z-50 w-72 rounded-lg border bg-background/95 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/80 md:bottom-6 md:right-6 max-md:bottom-20 max-md:right-4">
+      <div className="p-3 space-y-2">
+        {/* Task title + project info */}
+        <button
+          type="button"
+          onClick={handleTaskClick}
+          className="flex items-start gap-2 w-full text-left hover:opacity-80 transition-opacity"
+        >
+          <ClipboardList className="size-4 text-muted-foreground shrink-0 mt-0.5" />
+          <div className="min-w-0 flex-1">
             <p className="text-sm font-medium truncate">{status.taskTitle}</p>
             {status.projectName && (
               <p className="text-xs text-muted-foreground truncate">{status.projectName}</p>
             )}
-          </button>
-          <span className="font-mono text-sm tabular-nums shrink-0">{elapsed}</span>
-          <Button size="sm" variant="destructive" onClick={handleStop}>
-            <Square className="size-3.5" />
+          </div>
+        </button>
+
+        {/* Elapsed + stop button */}
+        <div className="flex items-center justify-between">
+          <FloatingElapsed startedAt={status.startedAt!} />
+          <Button size="sm" variant="outline" onClick={handleStop} className="h-7 gap-1.5 text-xs">
+            <Square className="size-3" />
+            Stop
           </Button>
         </div>
       </div>
-    )
-  }
-
-  // Desktop: inline in header
-  return (
-    <div className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm">
-      <Clock className="size-3.5 text-primary animate-pulse" />
-      <button onClick={handleTaskClick} className="max-w-[160px] truncate text-left hover:underline">
-        {status.taskTitle}
-      </button>
-      <span className="font-mono tabular-nums text-muted-foreground">{elapsed}</span>
-      <Button size="icon" variant="ghost" className="size-6" onClick={handleStop}>
-        <Square className="size-3" />
-      </Button>
     </div>
+  )
+}
+
+function FloatingElapsed({ startedAt }: { startedAt: number }) {
+  const now = useTimerTick()
+  return (
+    <span className="font-mono text-sm font-medium tabular-nums text-foreground">
+      {formatElapsed(startedAt, now)}
+    </span>
   )
 }

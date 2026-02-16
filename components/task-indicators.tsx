@@ -10,18 +10,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Checkbox } from "@/components/ui/checkbox"
 import { FileTextIcon, MessageSquareIcon, ListChecksIcon } from "lucide-react"
 import { formatDistanceToNow } from "@/lib/format"
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type EnrichedTask = Record<string, any>
-
-function getInitials(name: string) {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2)
-}
+import { getInitials } from "@/lib/constants"
+import type { EnrichedTask } from "@/lib/types"
 
 /**
  * Renders inline indicator icons next to the task title:

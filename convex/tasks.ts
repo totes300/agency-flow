@@ -1,66 +1,39 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { Doc } from "./_generated/dataModel";
 import { requireAdmin, requireAuth, isAdmin } from "./lib/permissions";
+import { stopUserTimer } from "./lib/timer-helpers";
 import { taskStatus } from "./schema";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
-/** Stop a user's running timer, creating a time entry if elapsed > 0. */
-async function stopTimer(
-  ctx: { db: any },
-  user: { _id: any; timerTaskId?: any; timerStartedAt?: number },
-) {
-  if (!user.timerTaskId || !user.timerStartedAt) return;
-
-  const now = Date.now();
-  const elapsedMs = now - user.timerStartedAt;
-  const elapsedMinutes = Math.ceil(elapsedMs / 60000);
-
-  if (elapsedMinutes > 0) {
-    const today = new Date(now);
-    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-    await ctx.db.insert("timeEntries", {
-      taskId: user.timerTaskId,
-      userId: user._id,
-      date: dateStr,
-      durationMinutes: elapsedMinutes,
-      method: "timer" as const,
-    });
-  }
-
-  await ctx.db.patch(user._id, {
-    timerTaskId: undefined,
-    timerStartedAt: undefined,
-  });
-}
-
 /** Check whether a task has any time entries. */
-async function hasTimeEntries(ctx: { db: any }, taskId: any): Promise<boolean> {
+async function hasTimeEntries(ctx: MutationCtx, taskId: Doc<"tasks">["_id"]): Promise<boolean> {
   const entry = await ctx.db
     .query("timeEntries")
-    .withIndex("by_taskId", (q: any) => q.eq("taskId", taskId))
+    .withIndex("by_taskId", (q) => q.eq("taskId", taskId))
     .first();
   return entry !== null;
 }
 
 /** Delete all related records for a task (comments, attachments, activity log). */
-async function deleteTaskRelated(ctx: { db: any }, taskId: any) {
+async function deleteTaskRelated(ctx: MutationCtx, taskId: Doc<"tasks">["_id"]) {
   const comments = await ctx.db
     .query("comments")
-    .withIndex("by_taskId", (q: any) => q.eq("taskId", taskId))
+    .withIndex("by_taskId", (q) => q.eq("taskId", taskId))
     .collect();
   for (const c of comments) await ctx.db.delete(c._id);
 
   const attachments = await ctx.db
     .query("attachments")
-    .withIndex("by_taskId", (q: any) => q.eq("taskId", taskId))
+    .withIndex("by_taskId", (q) => q.eq("taskId", taskId))
     .collect();
   for (const a of attachments) await ctx.db.delete(a._id);
 
   const logs = await ctx.db
     .query("activityLogEntries")
-    .withIndex("by_taskId", (q: any) => q.eq("taskId", taskId))
+    .withIndex("by_taskId", (q) => q.eq("taskId", taskId))
     .collect();
   for (const l of logs) await ctx.db.delete(l._id);
 }
@@ -117,7 +90,7 @@ export const get = query({
     // Total minutes
     const timeEntries = await ctx.db
       .query("timeEntries")
-      .withIndex("by_taskId", (q: any) => q.eq("taskId", id))
+      .withIndex("by_taskId", (q) => q.eq("taskId", id))
       .collect();
     const totalMinutes = timeEntries.reduce(
       (sum: number, e: any) => sum + e.durationMinutes,
@@ -140,7 +113,7 @@ export const get = query({
     for (const st of subtasks) {
       const stEntries = await ctx.db
         .query("timeEntries")
-        .withIndex("by_taskId", (q: any) => q.eq("taskId", st._id))
+        .withIndex("by_taskId", (q) => q.eq("taskId", st._id))
         .collect();
       subtaskTotalMinutes += stEntries.reduce(
         (sum: number, e: any) => sum + e.durationMinutes,
@@ -295,40 +268,38 @@ export const list = query({
     const allCategories = await ctx.db.query("workCategories").collect();
     const categoryMap = new Map(allCategories.map((c) => [c._id, c]));
 
-    // Get subtask counts, comment counts, time totals for the page
-    const taskIds = new Set(page.map((t) => t._id));
-
-    // Subtasks
-    const allSubtasks = await ctx.db.query("tasks").collect();
-    const subtasksByParent = new Map<string, any[]>();
-    for (const st of allSubtasks) {
-      if (st.parentTaskId && taskIds.has(st.parentTaskId)) {
-        const list = subtasksByParent.get(st.parentTaskId) ?? [];
-        list.push(st);
-        subtasksByParent.set(st.parentTaskId, list);
-      }
-    }
-
-    // Comments
-    const allComments = await ctx.db.query("comments").collect();
+    // Per-task indexed lookups for subtasks, comments, time entries (max 50 tasks)
+    const subtasksByParent = new Map<string, typeof page>();
     const commentsByTask = new Map<string, any[]>();
-    for (const c of allComments) {
-      if (taskIds.has(c.taskId)) {
-        const list = commentsByTask.get(c.taskId) ?? [];
-        list.push(c);
-        commentsByTask.set(c.taskId, list);
-      }
-    }
-
-    // Time entries
-    const allTimeEntries = await ctx.db.query("timeEntries").collect();
     const minutesByTask = new Map<string, number>();
-    for (const te of allTimeEntries) {
-      if (taskIds.has(te.taskId)) {
-        minutesByTask.set(
-          te.taskId,
-          (minutesByTask.get(te.taskId) ?? 0) + te.durationMinutes,
-        );
+
+    for (const task of page) {
+      // Subtasks via index
+      const subtasks = await ctx.db
+        .query("tasks")
+        .withIndex("by_parentTaskId", (q) => q.eq("parentTaskId", task._id))
+        .collect();
+      if (subtasks.length > 0) {
+        subtasksByParent.set(task._id, subtasks);
+      }
+
+      // Comments via index
+      const comments = await ctx.db
+        .query("comments")
+        .withIndex("by_taskId", (q) => q.eq("taskId", task._id))
+        .collect();
+      if (comments.length > 0) {
+        commentsByTask.set(task._id, comments);
+      }
+
+      // Time entries via index
+      const timeEntries = await ctx.db
+        .query("timeEntries")
+        .withIndex("by_taskId", (q) => q.eq("taskId", task._id))
+        .collect();
+      const totalMin = timeEntries.reduce((sum, e) => sum + e.durationMinutes, 0);
+      if (totalMin > 0) {
+        minutesByTask.set(task._id, totalMin);
       }
     }
 
@@ -338,7 +309,7 @@ export const list = query({
       const client = project ? clientMap.get(project.clientId) : null;
 
       const assignees = task.assigneeIds
-        .map((uid: any) => {
+        .map((uid) => {
           const u = userMap.get(uid);
           return u
             ? { _id: u._id, name: u.name, avatarUrl: u.avatarUrl }
@@ -597,6 +568,11 @@ export const update = mutation({
     }
 
     if (updates.estimate !== undefined) {
+      if (updates.estimate !== null) {
+        if (!Number.isInteger(updates.estimate) || updates.estimate < 0) {
+          throw new Error("Estimate must be a non-negative integer (minutes)");
+        }
+      }
       patch.estimate =
         updates.estimate === null ? undefined : updates.estimate;
     }
@@ -726,7 +702,7 @@ export const archive = mutation({
     const allUsers = await ctx.db.query("users").collect();
     for (const u of allUsers) {
       if (u.timerTaskId && taskIds.has(u.timerTaskId)) {
-        await stopTimer(ctx, u);
+        await stopUserTimer(ctx, u);
       }
     }
   },
@@ -754,6 +730,16 @@ export const remove = mutation({
       .query("tasks")
       .withIndex("by_parentTaskId", (q) => q.eq("parentTaskId", id))
       .collect();
+
+    // Check subtasks for time entries too
+    for (const st of subtasks) {
+      if (await hasTimeEntries(ctx, st._id)) {
+        throw new Error(
+          "Cannot delete: subtask has time entries. Archive instead.",
+        );
+      }
+    }
+
     for (const st of subtasks) {
       await deleteTaskRelated(ctx, st._id);
       await ctx.db.delete(st._id);
@@ -761,13 +747,6 @@ export const remove = mutation({
 
     // Delete task's related records
     await deleteTaskRelated(ctx, id);
-
-    // Delete time entries for subtasks (check)
-    // (parent has none — we checked above — but subtasks might)
-    // Actually subtasks' time entries should also block, let's check
-    // The plan says "Deletes: task + subtasks + comments + attachments + activity log"
-    // It doesn't mention blocking on subtask time entries, just on the task itself
-
     await ctx.db.delete(id);
   },
 });
@@ -797,6 +776,19 @@ export const moveToProject = mutation({
       );
     }
 
+    // Check subtasks for time entries too
+    const subtasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_parentTaskId", (q) => q.eq("parentTaskId", id))
+      .collect();
+    for (const st of subtasks) {
+      if (await hasTimeEntries(ctx, st._id)) {
+        throw new Error(
+          "Cannot move task: subtask has time entries. Time entries are linked to the current project for billing.",
+        );
+      }
+    }
+
     // Update task
     await ctx.db.patch(id, {
       projectId,
@@ -804,10 +796,6 @@ export const moveToProject = mutation({
     });
 
     // Cascade to subtasks
-    const subtasks = await ctx.db
-      .query("tasks")
-      .withIndex("by_parentTaskId", (q) => q.eq("parentTaskId", id))
-      .collect();
     for (const st of subtasks) {
       await ctx.db.patch(st._id, {
         projectId,
@@ -993,7 +981,7 @@ export const bulkArchive = mutation({
       const taskIds = new Set([taskId, ...subtasks.map((s) => s._id)]);
       for (const u of allUsers) {
         if (u.timerTaskId && taskIds.has(u.timerTaskId)) {
-          await stopTimer(ctx, u);
+          await stopUserTimer(ctx, u);
           // Refresh user record since it was patched
           const refreshed = await ctx.db.get(u._id);
           if (refreshed) {

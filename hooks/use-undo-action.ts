@@ -12,13 +12,20 @@ const ACTION_DELAY_MS = 4800 // Slightly before toast dismisses to avoid race
  */
 export function useUndoAction() {
   const pendingTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+  const pendingActions = useRef<Map<string, () => Promise<void>>>(new Map())
 
-  // Clean up pending timeouts on unmount
+  // On unmount: clear timeouts but COMMIT all pending actions
   useEffect(() => {
     const timeouts = pendingTimeouts.current
+    const actions = pendingActions.current
     return () => {
       timeouts.forEach(clearTimeout)
       timeouts.clear()
+      // Fire-and-forget all pending actions so they aren't lost on navigation
+      actions.forEach((action) => {
+        action().catch(console.error)
+      })
+      actions.clear()
     }
   }, [])
 
@@ -37,6 +44,7 @@ export function useUndoAction() {
       if (existing) {
         clearTimeout(existing)
         pendingTimeouts.current.delete(id)
+        pendingActions.current.delete(id)
       }
 
       const toastId = toast(message, {
@@ -48,18 +56,23 @@ export function useUndoAction() {
             if (timeout) {
               clearTimeout(timeout)
               pendingTimeouts.current.delete(id)
+              pendingActions.current.delete(id)
             }
             toast.dismiss(toastId)
           },
         },
       })
 
+      // Store the action for commit-on-unmount
+      pendingActions.current.set(id, action)
+
       const timeout = setTimeout(async () => {
         pendingTimeouts.current.delete(id)
+        pendingActions.current.delete(id)
         try {
           await action()
         } catch (err: unknown) {
-          toast.error((err as Error).message)
+          toast.error(err instanceof Error ? err.message : "Something went wrong")
         }
       }, ACTION_DELAY_MS)
 

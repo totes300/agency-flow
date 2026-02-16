@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
 import { requireAdmin, requireAuth } from "./lib/permissions";
 
 /**
@@ -48,7 +49,7 @@ export const list = query({
     for (const projectId of relevantProjectIds) {
       const tasks = await ctx.db
         .query("tasks")
-        .withIndex("by_projectId", (q) => q.eq("projectId", projectId as any))
+        .withIndex("by_projectId", (q) => q.eq("projectId", projectId as Id<"projects">))
         .collect();
       tasksByProject.set(projectId, tasks.map((t) => t._id));
     }
@@ -59,7 +60,7 @@ export const list = query({
       for (const taskId of taskIds) {
         const entries = await ctx.db
           .query("timeEntries")
-          .withIndex("by_taskId", (q) => q.eq("taskId", taskId as any))
+          .withIndex("by_taskId", (q) => q.eq("taskId", taskId as Id<"tasks">))
           .collect();
         const monthMinutes = entries
           .filter((te) => te.date >= monthStart && te.date < nextMonth)
@@ -99,7 +100,7 @@ export const get = query({
   handler: async (ctx, { id }) => {
     await requireAdmin(ctx);
     const client = await ctx.db.get(id);
-    if (!client) throw new Error("Client not found");
+    if (!client) return null;
     return client;
   },
 });

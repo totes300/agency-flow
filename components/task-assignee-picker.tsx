@@ -19,17 +19,9 @@ import {
   CommandList,
 } from "@/components/ui/command"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { CheckIcon } from "lucide-react"
+import { CheckIcon, ChevronDown, UserRound } from "lucide-react"
 import { cn } from "@/lib/utils"
-
-function getInitials(name: string) {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2)
-}
+import { getInitials } from "@/lib/constants"
 
 export function TaskAssigneeAvatars({
   assignees,
@@ -39,7 +31,12 @@ export function TaskAssigneeAvatars({
   showNames?: boolean
 }) {
   if (assignees.length === 0) {
-    return <span className="text-muted-foreground text-sm">Unassigned</span>
+    return (
+      <span className="inline-flex items-center gap-1 text-muted-foreground text-sm">
+        <UserRound className="size-4" />
+        {showNames && "Assign"}
+      </span>
+    )
   }
 
   const nameLabel = showNames
@@ -52,13 +49,13 @@ export function TaskAssigneeAvatars({
     <div className="flex items-center gap-1.5">
       <div className="flex -space-x-1.5">
         {assignees.slice(0, 3).map((a) => (
-          <Avatar key={a._id} className="size-6 border-2 border-background">
+          <Avatar key={a._id} className="size-5 border-2 border-background">
             <AvatarImage src={a.avatarUrl} alt={a.name} />
             <AvatarFallback className="text-[10px]">{getInitials(a.name)}</AvatarFallback>
           </Avatar>
         ))}
         {assignees.length > 3 && (
-          <div className="flex size-6 items-center justify-center rounded-full border-2 border-background bg-muted text-[10px] font-medium">
+          <div className="flex size-5 items-center justify-center rounded-full border-2 border-background bg-muted text-[9px] font-medium">
             +{assignees.length - 3}
           </div>
         )}
@@ -95,7 +92,7 @@ export function TaskAssigneePicker({
     try {
       await updateTask({ id: taskId, assigneeIds: newIds as Id<"users">[] })
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 
@@ -104,10 +101,14 @@ export function TaskAssigneePicker({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="rounded-md px-1 py-1 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full bg-secondary/50 px-1.5 py-0.5 text-xs font-medium transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            !showNames && "rounded-md bg-transparent px-1 py-1",
+          )}
           onClick={(e) => e.stopPropagation()}
         >
           <TaskAssigneeAvatars assignees={currentAssignees} showNames={showNames} />
+          {showNames && <ChevronDown className="size-3 shrink-0 text-muted-foreground" />}
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-56 p-0" align="start" onClick={(e) => e.stopPropagation()}>

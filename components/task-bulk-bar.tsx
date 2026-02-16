@@ -24,24 +24,7 @@ import { CheckIcon, XIcon, ArchiveIcon, ChevronDownIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useUndoAction } from "@/hooks/use-undo-action"
 import { getStatusConfig } from "@/components/task-status-select"
-
-function getInitials(name: string) {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2)
-}
-
-const STATUS_OPTIONS = [
-  { value: "inbox", label: "Inbox" },
-  { value: "today", label: "Today" },
-  { value: "next_up", label: "Next Up" },
-  { value: "admin_review", label: "Review" },
-  { value: "stuck", label: "Stuck" },
-  { value: "done", label: "Done" },
-] as const
+import { STATUS_OPTIONS, getInitials } from "@/lib/constants"
 
 export function TaskBulkBar({
   selectedIds,
@@ -70,12 +53,12 @@ export function TaskBulkBar({
     try {
       const result = await bulkUpdateStatus({
         ids: selectedIds,
-        status: status as any,
+        status: status as "inbox" | "today" | "next_up" | "admin_review" | "stuck" | "done",
       })
       toast.success(`Updated ${result.updated} task${result.updated !== 1 ? "s" : ""}`)
       onClearSelection()
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 
@@ -89,7 +72,7 @@ export function TaskBulkBar({
       toast.success(`Assigned ${result.updated} task${result.updated !== 1 ? "s" : ""}`)
       onClearSelection()
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 

@@ -28,6 +28,7 @@ interface CommandSearchProps {
 export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
   const router = useRouter()
   const [query, setQuery] = useState("")
+  const [debouncedQuery, setDebouncedQuery] = useState("")
 
   // Register global keyboard shortcut
   useEffect(() => {
@@ -43,12 +44,21 @@ export function CommandSearch({ open, onOpenChange }: CommandSearchProps) {
 
   // Reset query when dialog opens
   useEffect(() => {
-    if (open) setQuery("")
+    if (open) {
+      setQuery("")
+      setDebouncedQuery("")
+    }
   }, [open])
+
+  // Debounce search query by 300ms
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query), 300)
+    return () => clearTimeout(timer)
+  }, [query])
 
   const searchResults = useQuery(
     api.search.globalSearch,
-    open && query.length > 0 ? { query } : "skip",
+    open && debouncedQuery.length > 0 ? { query: debouncedQuery } : "skip",
   )
 
   const tasks = searchResults?.tasks ?? []

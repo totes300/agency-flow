@@ -74,7 +74,7 @@ export function RetainerProjectDetail({
       await toggleStatus({ id: projectId })
       toast.success("Retainer status updated")
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 
@@ -94,8 +94,8 @@ export function RetainerProjectDetail({
           <span>
             Over allocation by {formatDuration(usage.overageMinutes)} — overage
             rate applies
-            {isAdmin && usage.overageRate > 0 && (
-              <> ({formatCurrency(usage.overageRate, currency)}/hr)</>
+            {isAdmin && (usage.overageRate ?? 0) > 0 && (
+              <> ({formatCurrency(usage.overageRate!, currency)}/hr)</>
             )}
           </span>
         </div>
@@ -152,9 +152,9 @@ export function RetainerProjectDetail({
               <p className="text-xl font-semibold text-red-600">
                 {formatDuration(usage.overageMinutes)}
               </p>
-              {isAdmin && usage.overageRate > 0 && (
+              {isAdmin && (usage.overageRate ?? 0) > 0 && (
                 <p className="text-muted-foreground mt-1 text-xs">
-                  {formatCurrency((usage.overageMinutes / 60) * usage.overageRate, currency)} cost
+                  {formatCurrency((usage.overageMinutes / 60) * usage.overageRate!, currency)} cost
                 </p>
               )}
             </CardContent>
@@ -182,9 +182,9 @@ export function RetainerProjectDetail({
             Retainer is{" "}
             {retainerStatus === "active" ? "active" : "inactive"}
           </Label>
-          {isAdmin && usage.overageRate > 0 && (
+          {isAdmin && (usage.overageRate ?? 0) > 0 && (
             <span className="text-muted-foreground ml-auto text-xs">
-              Overage rate: {formatCurrency(usage.overageRate, currency)}/hr
+              Overage rate: {formatCurrency(usage.overageRate!, currency)}/hr
             </span>
           )}
         </div>

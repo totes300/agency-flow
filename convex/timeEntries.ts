@@ -96,6 +96,11 @@ export const create = mutation({
       throw new Error("Access denied");
     }
 
+    // Cannot log time on archived tasks
+    if (task.isArchived) {
+      throw new Error("Cannot log time on an archived task");
+    }
+
     // Constraint #9: task must have a project
     if (!task.projectId) {
       throw new Error("Task must have a project before logging time");

@@ -1,9 +1,16 @@
 import { v } from "convex/values";
 import { mutation, query, QueryCtx, MutationCtx } from "./_generated/server";
-import { requireAuth } from "./lib/permissions";
+import { requireAuth, isAdmin } from "./lib/permissions";
 import { Id, Doc } from "./_generated/dataModel";
 
 const ROLLOVER_MONTHS = 3; // hardcoded for v1 (constraint #23)
+const YEAR_MONTH_REGEX = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+function validateYearMonth(yearMonth: string) {
+  if (!YEAR_MONTH_REGEX.test(yearMonth)) {
+    throw new Error("yearMonth must be in YYYY-MM format (e.g. 2025-03)");
+  }
+}
 
 /**
  * Get the first and last day of a month given a YYYY-MM string.
@@ -40,6 +47,7 @@ export const getOrCreateForMonth = mutation({
   },
   handler: async (ctx, { projectId, yearMonth }) => {
     await requireAuth(ctx);
+    validateYearMonth(yearMonth);
 
     const project = await ctx.db.get(projectId);
     if (!project) throw new Error("Project not found");
@@ -167,7 +175,8 @@ export const getUsage = query({
     yearMonth: v.string(), // YYYY-MM
   },
   handler: async (ctx, { projectId, yearMonth }) => {
-    await requireAuth(ctx);
+    const user = await requireAuth(ctx);
+    validateYearMonth(yearMonth);
 
     const project = await ctx.db.get(projectId);
     if (!project) throw new Error("Project not found");
@@ -237,7 +246,7 @@ export const getUsage = query({
         overage: overageMinutes > 0,
         expiring: expiringMinutes > 0,
       },
-      overageRate: project.overageRate ?? 0,
+      ...(isAdmin(user) ? { overageRate: project.overageRate ?? 0 } : {}),
     };
   },
 });

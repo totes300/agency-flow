@@ -1,11 +1,10 @@
 "use client"
 
-import { useState, useRef, useCallback, useMemo, KeyboardEvent } from "react"
+import { useState, useRef, useCallback, useMemo, memo, KeyboardEvent } from "react"
 import { useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
 import { toast } from "sonner"
-import { formatDuration } from "@/lib/format"
 import {
   Table,
   TableBody,
@@ -37,11 +36,9 @@ import { TaskCategorySelect } from "@/components/task-category-select"
 import { TaskActionsMenu } from "@/components/task-actions-menu"
 import { TaskIndicators } from "@/components/task-indicators"
 import { TaskBulkBar } from "@/components/task-bulk-bar"
+import { TimerCapsule } from "@/components/timer-button"
 import type { GroupByOption } from "@/components/task-filters"
-
-// Use permissive types to avoid mismatches with Convex generated types
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type EnrichedTask = Record<string, any>
+import type { EnrichedTask } from "@/lib/types"
 
 type TaskListResult = {
   page: EnrichedTask[]
@@ -80,9 +77,10 @@ function groupTasks(
         break
       case "assignee":
         // Use first assignee for grouping (tasks can have multiple)
-        if (task.assignees?.length > 0) {
-          key = task.assignees[0]._id
-          label = task.assignees[0].name
+        const firstAssignee = task.assignees?.find(Boolean)
+        if (firstAssignee) {
+          key = firstAssignee._id
+          label = firstAssignee.name
         } else {
           key = "unassigned"
           label = "Unassigned"
@@ -176,7 +174,7 @@ export function TaskListTable({
       setShowMobileCreateDialog(false)
       inputRef.current?.focus()
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     } finally {
       setIsCreating(false)
     }
@@ -396,7 +394,7 @@ export function TaskListTable({
               {tableHeaders(true)}
               <TableBody>
                 {tasks.map((task) => (
-                  <TaskRow
+                  <MemoizedTaskRow
                     key={task._id}
                     task={task}
                     isAdmin={isAdmin}
@@ -430,7 +428,7 @@ export function TaskListTable({
         ) : (
           <div className="space-y-2">
             {tasks.map((task) => (
-              <TaskCard
+              <MemoizedTaskCard
                 key={task._id}
                 task={task}
                 isAdmin={isAdmin}
@@ -617,7 +615,7 @@ function GroupSection({
             </TableHeader>
             <TableBody>
               {group.tasks.map((task) => (
-                <TaskRow
+                <MemoizedTaskRow
                   key={task._id}
                   task={task}
                   isAdmin={isAdmin}
@@ -683,7 +681,7 @@ function MobileGroupSection({
         <CollapsibleContent>
           <div className="space-y-2 px-2 pb-2">
             {group.tasks.map((task) => (
-              <TaskCard
+              <MemoizedTaskCard
                 key={task._id}
                 task={task}
                 isAdmin={isAdmin}
@@ -701,19 +699,21 @@ function MobileGroupSection({
 
 // ── Desktop: Table Row ──────────────────────────────────────────────────
 
-function TaskRow({
-  task,
-  isAdmin,
-  isSelected,
-  onToggleSelect,
-  onOpenTask,
-}: {
+type TaskRowProps = {
   task: EnrichedTask
   isAdmin: boolean
   isSelected: boolean
   onToggleSelect: (taskId: string) => void
   onOpenTask?: (taskId: string) => void
-}) {
+}
+
+const MemoizedTaskRow = memo(function TaskRow({
+  task,
+  isAdmin,
+  isSelected,
+  onToggleSelect,
+  onOpenTask,
+}: TaskRowProps) {
   return (
     <TableRow
       className="group cursor-pointer"
@@ -754,7 +754,8 @@ function TaskRow({
         <TaskAssigneePicker
           taskId={task._id as Id<"tasks">}
           currentAssigneeIds={task.assigneeIds}
-          currentAssignees={task.assignees}
+          currentAssignees={task.assignees.filter((a): a is NonNullable<typeof a> => a !== null)}
+          showNames
         />
       </TableCell>
 
@@ -777,11 +778,14 @@ function TaskRow({
         />
       </TableCell>
 
-      {/* Time */}
-      <TableCell className="text-right">
-        <span className="text-muted-foreground text-sm">
-          {task.totalMinutes > 0 ? formatDuration(task.totalMinutes) : "—"}
-        </span>
+      {/* Time — TimerCapsule self-subscribes to timer status */}
+      <TableCell>
+        <TimerCapsule
+          taskId={task._id as Id<"tasks">}
+          taskTitle={task.title}
+          hasProject={!!task.projectId}
+          totalMinutes={task.totalMinutes ?? 0}
+        />
       </TableCell>
 
       {/* Actions */}
@@ -795,23 +799,25 @@ function TaskRow({
       </TableCell>
     </TableRow>
   )
-}
+})
 
 // ── Mobile: Task Card ───────────────────────────────────────────────────
 
-function TaskCard({
-  task,
-  isAdmin,
-  isSelected,
-  onToggleSelect,
-  onOpenTask,
-}: {
+type TaskCardProps = {
   task: EnrichedTask
   isAdmin: boolean
   isSelected: boolean
   onToggleSelect: (taskId: string) => void
   onOpenTask?: (taskId: string) => void
-}) {
+}
+
+const MemoizedTaskCard = memo(function TaskCard({
+  task,
+  isAdmin,
+  isSelected,
+  onToggleSelect,
+  onOpenTask,
+}: TaskCardProps) {
   return (
     <div
       className="rounded-lg border bg-card p-3 space-y-2 cursor-pointer"
@@ -857,8 +863,8 @@ function TaskCard({
       <div className="flex flex-wrap items-center gap-2 pl-6">
         <TaskStatusBadge status={task.status} />
 
-        {task.assignees?.length > 0 && (
-          <TaskAssigneeAvatars assignees={task.assignees} />
+        {task.assignees?.filter(Boolean).length > 0 && (
+          <TaskAssigneeAvatars assignees={task.assignees.filter((a): a is NonNullable<typeof a> => a !== null)} />
         )}
 
         {task.workCategoryName && (
@@ -867,12 +873,15 @@ function TaskCard({
           </span>
         )}
 
-        {task.totalMinutes > 0 && (
-          <span className="text-xs text-muted-foreground ml-auto">
-            {formatDuration(task.totalMinutes)}
-          </span>
-        )}
+        <div className="ml-auto">
+          <TimerCapsule
+            taskId={task._id as Id<"tasks">}
+            taskTitle={task.title}
+            hasProject={!!task.projectId}
+            totalMinutes={task.totalMinutes ?? 0}
+          />
+        </div>
       </div>
     </div>
   )
-}
+})

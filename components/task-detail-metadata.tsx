@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, KeyboardEvent } from "react"
+import { useState, useCallback, useEffect, KeyboardEvent } from "react"
 import { useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
@@ -11,8 +11,7 @@ import { Switch } from "@/components/ui/switch"
 import { TaskStatusSelect } from "@/components/task-status-select"
 import { TaskAssigneePicker } from "@/components/task-assignee-picker"
 import { TaskCategorySelect } from "@/components/task-category-select"
-
-type EnrichedTask = Record<string, any>
+import type { EnrichedTask } from "@/lib/types"
 
 /**
  * Single horizontal strip of controls separated by thin vertical dividers.
@@ -31,12 +30,17 @@ export function TaskDetailMetadata({
     task.estimate ? formatDuration(task.estimate) : "",
   )
 
+  // Resync estimate text when task changes (e.g. switching tasks in dialog)
+  useEffect(() => {
+    setEstimateText(task.estimate ? formatDuration(task.estimate) : "")
+  }, [task.estimate])
+
   const handleBillableChange = useCallback(
     async (checked: boolean) => {
       try {
         await updateTask({ id: task._id as Id<"tasks">, billable: checked })
       } catch (err: unknown) {
-        toast.error((err as Error).message)
+        toast.error(err instanceof Error ? err.message : "Something went wrong")
       }
     },
     [updateTask, task._id],
@@ -48,7 +52,7 @@ export function TaskDetailMetadata({
       try {
         await updateTask({ id: task._id as Id<"tasks">, estimate: null })
       } catch (err: unknown) {
-        toast.error((err as Error).message)
+        toast.error(err instanceof Error ? err.message : "Something went wrong")
       }
       return
     }
@@ -62,7 +66,7 @@ export function TaskDetailMetadata({
       await updateTask({ id: task._id as Id<"tasks">, estimate: minutes })
       setEstimateText(formatDuration(minutes))
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }, [estimateText, updateTask, task._id, task.estimate])
 
@@ -101,7 +105,7 @@ export function TaskDetailMetadata({
       <TaskAssigneePicker
         taskId={task._id as Id<"tasks">}
         currentAssigneeIds={task.assigneeIds}
-        currentAssignees={task.assignees}
+        currentAssignees={task.assignees.filter((a): a is NonNullable<typeof a> => a !== null)}
         showNames
       />
 

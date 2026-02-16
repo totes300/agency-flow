@@ -29,14 +29,27 @@ function userInitials(name: string): string {
 }
 
 export function TaskDetailComments({ taskId, isAdmin, currentUserId }: TaskDetailCommentsProps) {
+  const [allComments, setAllComments] = useState<any[]>([])
   const [cursor, setCursor] = useState<string | undefined>(undefined)
-  const result = useQuery(api.comments.list, { taskId })
+  const [prevTaskId, setPrevTaskId] = useState(taskId)
+  const result = useQuery(api.comments.list, { taskId, paginationOpts: cursor ? { cursor } : undefined })
   const createComment = useMutation(api.comments.create)
   const removeComment = useMutation(api.comments.remove)
   const { execute: undoExecute } = useUndoAction()
 
-  const comments = result?.page ?? []
+  // Reset accumulated comments when taskId changes
+  if (taskId !== prevTaskId) {
+    setPrevTaskId(taskId)
+    setAllComments([])
+    setCursor(undefined)
+  }
+
+  // Accumulate pages
+  const currentPage = result?.page ?? []
   const isDone = result?.isDone ?? true
+
+  // Merge: first page replaces, subsequent pages append
+  const comments = cursor === undefined ? currentPage : [...allComments, ...currentPage]
 
   const handleSubmit = useCallback(
     async (content: any, mentionedUserIds: string[]) => {
@@ -47,7 +60,7 @@ export function TaskDetailComments({ taskId, isAdmin, currentUserId }: TaskDetai
           mentionedUserIds: mentionedUserIds as Id<"users">[],
         })
       } catch (err: unknown) {
-        toast.error((err as Error).message)
+        toast.error(err instanceof Error ? err.message : "Something went wrong")
       }
     },
     [taskId, createComment],
@@ -95,7 +108,7 @@ export function TaskDetailComments({ taskId, isAdmin, currentUserId }: TaskDetai
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="size-5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
                     onClick={() => handleDelete(comment._id as Id<"comments">, comment.userName)}
                     aria-label="Delete comment"
                   >
@@ -118,8 +131,9 @@ export function TaskDetailComments({ taskId, isAdmin, currentUserId }: TaskDetai
 
       {!isDone && (
         <Button variant="ghost" size="sm" className="w-full" onClick={() => {
-          if (comments.length > 0) {
-            setCursor(String(comments[comments.length - 1]._creationTime))
+          if (currentPage.length > 0) {
+            setAllComments(comments)
+            setCursor(String(currentPage[currentPage.length - 1]._creationTime))
           }
         }}>
           Load more

@@ -92,7 +92,7 @@ export function TaskDetailAttachments({ taskId, isAdmin, currentUserId }: TaskDe
         }
         toast.success(`Uploaded ${fileArray.length} file${fileArray.length > 1 ? "s" : ""}`)
       } catch (err: unknown) {
-        toast.error((err as Error).message)
+        toast.error(err instanceof Error ? err.message : "Something went wrong")
       } finally {
         setUploading(false)
       }

@@ -53,7 +53,7 @@ export function TaskStatusSelect({
     try {
       await updateStatus({ id: taskId, status })
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 
