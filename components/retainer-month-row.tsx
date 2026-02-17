@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback, type MouseEvent } from "react"
 import { Badge } from "@/components/ui/badge"
 import {
   Collapsible,
@@ -16,6 +16,7 @@ import {
   getStartedWithSubtitle,
   getEndingBalanceSubtitle,
   type ComputedMonth,
+  type AggregatedTask,
 } from "@/convex/lib/retainerCompute"
 import { formatCurrency, getCurrencySymbol } from "@/lib/format"
 import { cn } from "@/lib/utils"
@@ -34,6 +35,7 @@ interface RetainerMonthRowProps {
   cycleRangeLabel?: string
   defaultOpen?: boolean
   isAdmin?: boolean
+  onOpenTask?: (taskId: string) => void
 }
 
 export function RetainerMonthRow({
@@ -47,8 +49,14 @@ export function RetainerMonthRow({
   cycleRangeLabel = "",
   defaultOpen = false,
   isAdmin = false,
+  onOpenTask,
 }: RetainerMonthRowProps) {
   const [open, setOpen] = useState(defaultOpen)
+
+  const handleTaskClick = useCallback((e: MouseEvent<HTMLButtonElement>) => {
+    const taskId = e.currentTarget.dataset.taskId
+    if (taskId) onOpenTask?.(taskId)
+  }, [onOpenTask])
 
   const budgetHours = minutesToHours(budgetMinutes)
   const workedHours = minutesToHours(month.workedMinutes)
@@ -78,7 +86,7 @@ export function RetainerMonthRow({
     <Collapsible open={open} onOpenChange={setOpen}>
       <div className="border-b">
         {/* ─── Collapsed trigger ─── */}
-        <CollapsibleTrigger className="flex w-full items-center justify-between px-4 py-3.5 text-left hover:bg-muted/30 transition-colors cursor-pointer">
+        <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-3.5 text-left hover:bg-muted/30 transition-colors cursor-pointer">
           <div className="flex items-center gap-2.5">
             <ChevronRightIcon
               className={cn(
@@ -98,7 +106,7 @@ export function RetainerMonthRow({
 
         {/* ─── Expanded content ─── */}
         <CollapsibleContent>
-          <div className="px-4 pb-6 pt-2">
+          <div className="px-6 pb-6 pt-2">
             {/* Three-box summary */}
             <ThreeBoxSummary
               month={month}
@@ -113,50 +121,61 @@ export function RetainerMonthRow({
 
             {/* Task list grouped by category */}
             {month.tasks.length > 0 && (
-              <div className="mb-5">
-                <div className="text-muted-foreground mb-3 text-[10px] font-semibold uppercase tracking-wider">
-                  {T.workCompleted}
+              <div className="mb-6">
+                {/* Section header */}
+                <div className="mb-5">
+                  <span className="text-muted-foreground text-[11px] font-semibold uppercase tracking-wider">
+                    {T.workCompleted}
+                  </span>
                 </div>
+
                 {categoryGroups.map((group, gi) => (
-                  <div key={group.categoryName} className={cn(gi < categoryGroups.length - 1 && "mb-4")}>
+                  <div key={group.categoryName} className={cn(gi > 0 && "mt-6")}>
                     {/* Category header */}
-                    <div className="flex items-center justify-between border-b py-1.5">
-                      <span className="text-muted-foreground text-xs font-semibold">
-                        {group.categoryName}
-                      </span>
-                      <span className="text-muted-foreground text-xs font-semibold tabular-nums">
+                    <div className="flex items-center rounded-sm bg-muted/75 px-2 py-1.5">
+                      <span className="min-w-0 flex-1 text-xs font-medium text-muted-foreground/70">{group.categoryName}</span>
+                      <span className="w-[4rem] shrink-0 text-right text-xs font-semibold text-muted-foreground tabular-nums">
                         {minutesToHours(group.totalMinutes)}h
                       </span>
                     </div>
-                    {/* Task rows — 4-column table-like layout */}
-                    {group.tasks.map((task, ti) => (
-                      <div
-                        key={`${task.taskId}-${task.date}-${ti}`}
-                        className={cn(
-                          "flex items-start gap-3 py-1.5",
-                          ti < group.tasks.length - 1 && "border-b border-dashed border-muted/60",
-                        )}
-                      >
-                        <span className="text-muted-foreground w-11 shrink-0 pt-px text-[11px] font-medium tabular-nums">
-                          {task.date.slice(5)}
-                        </span>
-                        <span className="w-52 shrink-0 text-[13px] font-medium">
-                          {task.title}
-                        </span>
-                        <span className="text-muted-foreground flex-1 pr-3 pt-px text-xs leading-relaxed">
-                          {task.description ?? task.note ?? ""}
-                        </span>
-                        <span className="text-muted-foreground w-12 shrink-0 pt-px text-right text-[13px] font-medium tabular-nums">
-                          {minutesToHours(task.durationMinutes)}h
-                        </span>
-                      </div>
-                    ))}
+                    {/* Task rows */}
+                    {group.tasks.map((task: AggregatedTask, ti: number) => {
+                      const shortDate = task.earliestDate.slice(5) // "MM-DD"
+                      return (
+                        <div
+                          key={task.taskId}
+                          className={cn(
+                            "flex items-baseline gap-3 py-2.5 px-2",
+                            ti < group.tasks.length - 1 && "border-b border-muted-foreground/8",
+                          )}
+                        >
+                          <span className="w-[3rem] shrink-0 text-muted-foreground/40 text-xs tabular-nums">
+                            {shortDate}
+                          </span>
+                          <button
+                            type="button"
+                            data-task-id={task.taskId}
+                            className="w-[13rem] shrink-0 text-[13px] font-medium line-clamp-2 text-left hover:underline cursor-pointer"
+                            onClick={handleTaskClick}
+                          >
+                            {task.title}
+                          </button>
+                          <span className="min-w-0 flex-1 text-muted-foreground/45 line-clamp-2 text-xs leading-relaxed mr-12">
+                            {task.description ?? ""}
+                          </span>
+                          <span className="w-[4rem] shrink-0 text-right text-[13px] text-muted-foreground tabular-nums">
+                            {minutesToHours(task.totalMinutes)}h
+                          </span>
+                        </div>
+                      )
+                    })}
                   </div>
                 ))}
+
                 {/* Total row */}
-                <div className="mt-3 flex items-center justify-between border-t pt-3">
-                  <span className="text-sm font-semibold">{T.total}</span>
-                  <span className="text-sm font-semibold tabular-nums">{workedHours}h</span>
+                <div className="flex items-center border-t border-muted-foreground/15 mt-3 pt-2.5 px-2">
+                  <span className="min-w-0 flex-1 text-[13px] font-bold">{T.total}</span>
+                  <span className="w-[4rem] shrink-0 text-right text-[13px] font-bold tabular-nums">{workedHours}h</span>
                 </div>
               </div>
             )}
@@ -177,7 +196,7 @@ export function RetainerMonthRow({
             )}
 
             {month.settles && month.unusedMinutes > 0 && (
-              <div className="rounded-md border border-amber-200 bg-amber-50/50 px-5 py-3.5 text-[13px] leading-relaxed text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+              <div className="rounded-lg border border-amber-200/60 bg-amber-50/30 px-5 py-4 text-[13px] leading-relaxed text-amber-800/90 dark:border-amber-800/60 dark:bg-amber-950/20 dark:text-amber-300/90">
                 {rolloverEnabled
                   ? T.unusedCycle(minutesToHours(month.unusedMinutes))
                   : T.unusedMonth(minutesToHours(month.unusedMinutes))}
@@ -220,7 +239,7 @@ function ThreeBoxSummary({
   return (
     <div className="mb-5 flex overflow-hidden rounded-md border">
       {/* Started with */}
-      <div className="flex-1 border-r bg-muted/30 px-5 py-4">
+      <div className="flex-1 border-r bg-muted/30 px-4 py-4">
         <div className="text-muted-foreground mb-2 text-[10px] font-semibold uppercase tracking-wider">
           {T.startedWith}
         </div>
@@ -234,7 +253,7 @@ function ThreeBoxSummary({
       </div>
 
       {/* Hours used */}
-      <div className="flex-1 border-r px-5 py-4">
+      <div className="flex-1 border-r px-4 py-4">
         <div className="text-muted-foreground mb-2 text-[10px] font-semibold uppercase tracking-wider">
           {T.hoursUsed}
         </div>
@@ -243,12 +262,12 @@ function ThreeBoxSummary({
           <span className="text-muted-foreground ml-0.5 text-[13px] font-normal">h</span>
         </div>
         <div className="text-muted-foreground mt-1.5 text-[11px]">
-          {T.tasksCompleted(month.tasks.length)}
+          {T.tasksCompleted(new Set(month.tasks.map(t => t.taskId)).size)}
         </div>
       </div>
 
       {/* Ending balance */}
-      <div className={cn("flex-1 px-5 py-4", endBalanceBg)}>
+      <div className={cn("flex-1 px-4 py-4", endBalanceBg)}>
         <div className="text-muted-foreground mb-2 text-[10px] font-semibold uppercase tracking-wider">
           {T.endingBalance}
         </div>

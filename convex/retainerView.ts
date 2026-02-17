@@ -57,13 +57,36 @@ export const getComputedView = query({
       }),
     );
 
+    // Extract plain text from Tiptap JSON description
+    const extractText = (node: any): string => {
+      if (typeof node === "string") return node;
+      let text = "";
+      if (node.text) text += node.text;
+      if (node.content) {
+        for (const child of node.content) {
+          text += extractText(child);
+        }
+      }
+      return text;
+    };
+
     const taskRecords: TaskRecord[] = [];
     for (const { task, entries } of entriesByTask) {
+      let descriptionPreview: string | undefined;
+      if (task.description) {
+        try {
+          const plainText = extractText(task.description);
+          descriptionPreview = plainText.slice(0, 200) || undefined;
+        } catch {
+          descriptionPreview = undefined;
+        }
+      }
+
       for (const entry of entries) {
         taskRecords.push({
           taskId: task._id,
           title: task.title,
-          description: task.clientUpdateText ?? undefined,
+          description: descriptionPreview,
           date: entry.date,
           workCategoryId: task.workCategoryId,
           workCategoryName: task.workCategoryId

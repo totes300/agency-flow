@@ -70,10 +70,21 @@ export interface CycleInfo {
   cycleIndex: number;
 }
 
+export interface AggregatedTask {
+  taskId: string;
+  title: string;
+  description?: string;
+  workCategoryId?: string;
+  workCategoryName?: string;
+  totalMinutes: number;
+  /** Earliest date from the underlying time entries (YYYY-MM-DD) */
+  earliestDate: string;
+}
+
 export interface CategoryGroup {
   workCategoryId: string | undefined;
   categoryName: string;
-  tasks: TaskRecord[];
+  tasks: AggregatedTask[];
   totalMinutes: number;
 }
 
@@ -263,7 +274,35 @@ export function computeRetainerMonths(
 // ── Category grouping ──────────────────────────────────────────────
 
 /**
- * Group task records by work category.
+ * Aggregate time-entry-level TaskRecords into one AggregatedTask per unique task,
+ * summing durations.
+ */
+function aggregateTasks(records: TaskRecord[]): AggregatedTask[] {
+  const map = new Map<string, AggregatedTask>();
+  for (const r of records) {
+    const existing = map.get(r.taskId);
+    if (existing) {
+      existing.totalMinutes += r.durationMinutes;
+      if (r.date < existing.earliestDate) {
+        existing.earliestDate = r.date;
+      }
+    } else {
+      map.set(r.taskId, {
+        taskId: r.taskId,
+        title: r.title,
+        description: r.description,
+        workCategoryId: r.workCategoryId,
+        workCategoryName: r.workCategoryName,
+        totalMinutes: r.durationMinutes,
+        earliestDate: r.date,
+      });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => a.earliestDate.localeCompare(b.earliestDate));
+}
+
+/**
+ * Group task records by work category, aggregating per unique task.
  * Returns groups sorted by category name, with "Uncategorized" last.
  */
 export function groupTasksByCategory(
@@ -288,7 +327,7 @@ export function groupTasksByCategory(
     result.push({
       workCategoryId: catId,
       categoryName: name,
-      tasks: catTasks.sort((a, b) => a.date.localeCompare(b.date)),
+      tasks: aggregateTasks(catTasks),
       totalMinutes: catTasks.reduce((sum, t) => sum + t.durationMinutes, 0),
     });
   }

@@ -21,6 +21,7 @@ interface RetainerViewProps {
   projectId: Id<"projects">
   currency: string
   isAdmin: boolean
+  onOpenTask?: (taskId: string) => void
 }
 
 /** Format a cycle range label like "Dec 1 – Feb 28, 2026" from an array of months. */
@@ -54,6 +55,7 @@ export function RetainerView({
   projectId,
   currency,
   isAdmin,
+  onOpenTask,
 }: RetainerViewProps) {
   const [filters, setFilters] = useState<RetainerFilterState>({})
 
@@ -142,7 +144,7 @@ export function RetainerView({
   }
 
   return (
-    <div className="max-w-5xl space-y-5">
+    <div className="max-w-3xl space-y-5">
       {/* ─── Cycle dashboard (current cycle, always unfiltered) ─── */}
       {currentCycleMonths.length > 0 && (
         <RetainerCycleDashboard
@@ -199,6 +201,7 @@ export function RetainerView({
                   cycleRangeLabel={cycleInfo?.label}
                   defaultOpen={i === 0}
                   isAdmin={isAdmin}
+                  onOpenTask={onOpenTask}
                 />
               </div>
             )

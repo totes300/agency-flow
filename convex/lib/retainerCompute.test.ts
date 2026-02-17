@@ -418,21 +418,50 @@ describe("groupTasksByCategory", () => {
     expect(groups[1].categoryName).toBe("Uncategorized");
   });
 
-  it("sorts tasks within group by date", () => {
+  it("sorts aggregated tasks within group by earliest date", () => {
     const tasks: TaskRecord[] = [
       makeTask("2025-01-15", 60, {
+        taskId: "task_b",
+        title: "Zeta task",
         workCategoryId: "cat_dev",
         workCategoryName: "Development",
       }),
       makeTask("2025-01-10", 60, {
+        taskId: "task_a",
+        title: "Alpha task",
         workCategoryId: "cat_dev",
         workCategoryName: "Development",
       }),
     ];
 
     const groups = groupTasksByCategory(tasks);
-    expect(groups[0].tasks[0].date).toBe("2025-01-10");
-    expect(groups[0].tasks[1].date).toBe("2025-01-15");
+    expect(groups[0].tasks[0].title).toBe("Alpha task");
+    expect(groups[0].tasks[0].earliestDate).toBe("2025-01-10");
+    expect(groups[0].tasks[1].title).toBe("Zeta task");
+    expect(groups[0].tasks[1].earliestDate).toBe("2025-01-15");
+  });
+
+  it("aggregates multiple time entries for the same task", () => {
+    const tasks: TaskRecord[] = [
+      makeTask("2025-01-10", 60, {
+        taskId: "task_same",
+        title: "Repeated task",
+        workCategoryId: "cat_dev",
+        workCategoryName: "Development",
+      }),
+      makeTask("2025-01-11", 120, {
+        taskId: "task_same",
+        title: "Repeated task",
+        workCategoryId: "cat_dev",
+        workCategoryName: "Development",
+      }),
+    ];
+
+    const groups = groupTasksByCategory(tasks);
+    expect(groups[0].tasks).toHaveLength(1);
+    expect(groups[0].tasks[0].totalMinutes).toBe(180);
+    expect(groups[0].tasks[0].earliestDate).toBe("2025-01-10");
+    expect(groups[0].totalMinutes).toBe(180);
   });
 });
 
