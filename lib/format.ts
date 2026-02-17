@@ -36,6 +36,26 @@ export function formatCurrency(
 }
 
 /**
+ * Get the currency symbol for a given currency code (e.g. "USD" → "$", "EUR" → "€").
+ * Uses Intl.NumberFormat to extract the symbol reliably.
+ */
+const currencySymbolCache = new Map<string, string>();
+
+export function getCurrencySymbol(currencyCode: string): string {
+  let symbol = currencySymbolCache.get(currencyCode);
+  if (!symbol) {
+    const parts = new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: currencyCode,
+      currencyDisplay: "narrowSymbol",
+    }).formatToParts(0);
+    symbol = parts.find((p) => p.type === "currency")?.value ?? currencyCode;
+    currencySymbolCache.set(currencyCode, symbol);
+  }
+  return symbol;
+}
+
+/**
  * Format a date string (YYYY-MM-DD) for display using browser locale.
  * Per CLAUDE.md formatting rule #2.
  */

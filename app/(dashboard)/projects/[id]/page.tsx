@@ -1,8 +1,8 @@
 "use client"
 
-import { use, useState } from "react"
+import { use, useState, useCallback } from "react"
 import { useQuery, useMutation } from "convex/react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -39,6 +39,9 @@ const DefaultAssigneesDialog = dynamic(() =>
 const ProjectFormDialog = dynamic(() =>
   import("@/components/project-form-dialog").then((m) => ({ default: m.ProjectFormDialog }))
 )
+const TaskDetailDialog = dynamic(() =>
+  import("@/components/task-detail-dialog").then((m) => ({ default: m.TaskDetailDialog }))
+)
 import { useUndoAction } from "@/hooks/use-undo-action"
 import { BILLING_TYPE_LABELS } from "@/lib/constants"
 import { PencilIcon, MoreHorizontalIcon, ArchiveIcon, ArchiveRestoreIcon, UsersIcon } from "lucide-react"
@@ -52,6 +55,29 @@ export default function ProjectDetailPage({
   const projectId = id as Id<"projects">
 
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const openTaskId = searchParams.get("task") as Id<"tasks"> | null
+
+  const handleOpenTask = useCallback(
+    (taskId: string) => {
+      const params = new URLSearchParams(searchParams.toString())
+      params.set("task", taskId)
+      router.push(`?${params.toString()}`, { scroll: false })
+    },
+    [router, searchParams],
+  )
+
+  const handleCloseTask = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete("task")
+    const qs = params.toString()
+    router.push(qs ? `?${qs}` : `/projects/${id}`, { scroll: false })
+  }, [router, searchParams, id])
+
+  const handleTaskDialogChange = useCallback((open: boolean) => {
+    if (!open) handleCloseTask()
+  }, [handleCloseTask])
+
   const me = useQuery(api.users.getMe)
   const project = useQuery(
     api.projects.get,
@@ -207,9 +233,9 @@ export default function ProjectDetailPage({
       {project.billingType === "retainer" && (
         <RetainerProjectDetail
           projectId={projectId}
-          retainerStatus={project.retainerStatus}
           currency={project.clientCurrency}
           isAdmin={isAdmin}
+          onOpenTask={handleOpenTask}
         />
       )}
 
@@ -244,10 +270,19 @@ export default function ProjectDetailPage({
             tmCategoryRates: project.tmCategoryRates,
             includedHoursPerMonth: project.includedHoursPerMonth,
             overageRate: project.overageRate,
+            rolloverEnabled: project.rolloverEnabled,
+            startDate: project.startDate,
             categoryEstimates: project.categoryEstimates,
           }}
         />
       )}
+
+      {/* Task detail dialog */}
+      <TaskDetailDialog
+        taskId={openTaskId}
+        open={!!openTaskId}
+        onOpenChange={handleTaskDialogChange}
+      />
     </div>
   )
 }

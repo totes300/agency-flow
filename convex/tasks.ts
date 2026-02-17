@@ -3,7 +3,7 @@ import { mutation, query, MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
 import { requireAdmin, requireAuth, isAdmin } from "./lib/permissions";
-import { stopUserTimer } from "./lib/timer-helpers";
+import { stopUserTimer } from "./lib/timerHelpers";
 import { taskStatus } from "./schema";
 
 // ── Helpers ──────────────────────────────────────────────────────────────

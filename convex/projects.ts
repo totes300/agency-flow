@@ -1,8 +1,26 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireAdmin, requireAuth, isAdmin } from "./lib/permissions";
-import { stopUserTimer } from "./lib/timer-helpers";
+import { stopUserTimer } from "./lib/timerHelpers";
 import { billingType, retainerStatus } from "./schema";
+
+/**
+ * Validate that a string is a valid YYYY-MM-DD date.
+ */
+function validateDateString(date: string): void {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new Error(`Invalid date format: "${date}". Expected YYYY-MM-DD.`);
+  }
+  const [y, m, d] = date.split("-").map(Number);
+  const parsed = new Date(y, m - 1, d);
+  if (
+    parsed.getFullYear() !== y ||
+    parsed.getMonth() !== m - 1 ||
+    parsed.getDate() !== d
+  ) {
+    throw new Error(`Invalid date: "${date}". Day does not exist.`);
+  }
+}
 
 /**
  * List projects for a client. Admin sees all, member sees all (project names are not sensitive).
@@ -210,6 +228,7 @@ export const get = query({
       isArchived: project.isArchived,
       retainerStatus: project.retainerStatus,
       startDate: project.startDate,
+      rolloverEnabled: project.rolloverEnabled,
       lastInvoicedAt: project.lastInvoicedAt,
       defaultAssignees: project.defaultAssignees,
       clientName: client?.name ?? "Unknown",
@@ -239,6 +258,8 @@ export const create = mutation({
     // Retainer-specific
     includedHoursPerMonth: v.optional(v.number()), // in minutes
     overageRate: v.optional(v.number()),
+    rolloverEnabled: v.optional(v.boolean()),
+    startDate: v.optional(v.string()), // YYYY-MM-DD, cycle start date
     // T&M-specific
     hourlyRate: v.optional(v.number()),
     tmCategoryRates: v.optional(
@@ -258,8 +279,11 @@ export const create = mutation({
       if (!args.includedHoursPerMonth || args.includedHoursPerMonth <= 0) {
         throw new Error("Retainer projects require included hours per month");
       }
+      if (args.startDate) {
+        validateDateString(args.startDate);
+      }
       const now = new Date();
-      const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      const defaultStartDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
       return await ctx.db.insert("projects", {
         clientId: args.clientId,
         name: trimmedName,
@@ -268,7 +292,8 @@ export const create = mutation({
         retainerStatus: "active",
         includedHoursPerMonth: args.includedHoursPerMonth,
         overageRate: args.overageRate,
-        startDate,
+        rolloverEnabled: args.rolloverEnabled ?? true,
+        startDate: args.startDate ?? defaultStartDate,
       });
     }
 
@@ -302,6 +327,8 @@ export const update = mutation({
     // Retainer-specific
     includedHoursPerMonth: v.optional(v.number()),
     overageRate: v.optional(v.number()),
+    rolloverEnabled: v.optional(v.boolean()),
+    startDate: v.optional(v.string()),
     // T&M-specific
     hourlyRate: v.optional(v.number()),
     tmCategoryRates: v.optional(
@@ -319,13 +346,31 @@ export const update = mutation({
       if (!trimmed) throw new Error("Project name cannot be empty");
       patch.name = trimmed;
     }
-    if (updates.includedHoursPerMonth !== undefined)
-      patch.includedHoursPerMonth = updates.includedHoursPerMonth;
-    if (updates.overageRate !== undefined)
-      patch.overageRate = updates.overageRate;
-    if (updates.hourlyRate !== undefined) patch.hourlyRate = updates.hourlyRate;
-    if (updates.tmCategoryRates !== undefined)
-      patch.tmCategoryRates = updates.tmCategoryRates;
+
+    // Retainer-specific fields
+    if (project.billingType === "retainer") {
+      if (updates.includedHoursPerMonth !== undefined) {
+        if (updates.includedHoursPerMonth <= 0) {
+          throw new Error("Retainer projects require included hours per month");
+        }
+        patch.includedHoursPerMonth = updates.includedHoursPerMonth;
+      }
+      if (updates.overageRate !== undefined)
+        patch.overageRate = updates.overageRate;
+      if (updates.rolloverEnabled !== undefined)
+        patch.rolloverEnabled = updates.rolloverEnabled;
+      if (updates.startDate !== undefined) {
+        validateDateString(updates.startDate);
+        patch.startDate = updates.startDate;
+      }
+    }
+
+    // T&M-specific fields
+    if (project.billingType === "t_and_m") {
+      if (updates.hourlyRate !== undefined) patch.hourlyRate = updates.hourlyRate;
+      if (updates.tmCategoryRates !== undefined)
+        patch.tmCategoryRates = updates.tmCategoryRates;
+    }
 
     await ctx.db.patch(id, patch);
   },
