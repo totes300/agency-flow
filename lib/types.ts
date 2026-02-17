@@ -19,6 +19,9 @@ export type EnrichedTask = {
   description?: unknown
   sortOrder?: number
   clientUpdateText?: string
+  dueDate?: number
+  createdAt?: number
+  lastEditedAt?: number
   // Enriched fields from list query
   projectName: string | null
   clientName: string | null
@@ -40,6 +43,13 @@ export type EnrichedTask = {
   }
   subtaskPreview?: Array<{ _id: string; title: string; status: string }>
   descriptionPreview?: string
+  lastViewedAt?: number | null
+  latestActivityLog?: Array<{
+    action: string
+    userName: string
+    avatarUrl?: string
+    _creationTime: number
+  }>
   // Fields only on get query (not list)
   subtasks?: Array<{
     _id: string

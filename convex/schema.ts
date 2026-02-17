@@ -134,6 +134,9 @@ export default defineSchema({
     billable: v.boolean(), // defaults true (#19)
     clientUpdateText: v.optional(v.string()),
     isArchived: v.boolean(),
+    dueDate: v.optional(v.number()), // timestamp ms
+    createdAt: v.optional(v.number()), // set on creation
+    lastEditedAt: v.optional(v.number()), // updated on any mutation
   })
     .index("by_projectId", ["projectId"])
     .index("by_parentTaskId", ["parentTaskId"])
@@ -141,6 +144,14 @@ export default defineSchema({
     .index("by_isArchived", ["isArchived"])
     .index("by_projectId_isArchived", ["projectId", "isArchived"])
     .index("by_assigneeIds", ["assigneeIds"]),
+
+  // ── Task Views (per-user read tracking) ─────────────────────────────
+  taskViews: defineTable({
+    taskId: v.id("tasks"),
+    userId: v.id("users"),
+    viewedAt: v.number(),
+  })
+    .index("by_taskId_userId", ["taskId", "userId"]),
 
   // ── Time Entries ───────────────────────────────────────────────────
   timeEntries: defineTable({

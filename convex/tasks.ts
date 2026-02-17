@@ -129,6 +129,14 @@ export const get = query({
       _creationTime: st._creationTime,
     }));
 
+    // Fetch task view for current user
+    const taskView = await ctx.db
+      .query("taskViews")
+      .withIndex("by_taskId_userId", (q) =>
+        q.eq("taskId", id).eq("userId", user._id),
+      )
+      .first();
+
     return {
       ...task,
       projectName,
@@ -140,6 +148,7 @@ export const get = query({
       totalMinutes,
       subtasks: enrichedSubtasks,
       subtaskTotalMinutes,
+      lastViewedAt: taskView?.viewedAt ?? null,
     };
   },
 });
@@ -268,10 +277,25 @@ export const list = query({
     const allCategories = await ctx.db.query("workCategories").collect();
     const categoryMap = new Map(allCategories.map((c) => [c._id, c]));
 
-    // Per-task indexed lookups for subtasks, comments, time entries (max 50 tasks)
+    // Batch-fetch task views for current user
+    const taskViewsByTask = new Map<string, number>();
+    for (const task of page) {
+      const view = await ctx.db
+        .query("taskViews")
+        .withIndex("by_taskId_userId", (q) =>
+          q.eq("taskId", task._id).eq("userId", user._id),
+        )
+        .first();
+      if (view) {
+        taskViewsByTask.set(task._id, view.viewedAt);
+      }
+    }
+
+    // Per-task indexed lookups for subtasks, comments, time entries, activity (max 50 tasks)
     const subtasksByParent = new Map<string, typeof page>();
     const commentsByTask = new Map<string, any[]>();
     const minutesByTask = new Map<string, number>();
+    const latestActivityByTask = new Map<string, any[]>();
 
     for (const task of page) {
       // Subtasks via index
@@ -300,6 +324,16 @@ export const list = query({
       const totalMin = timeEntries.reduce((sum, e) => sum + e.durationMinutes, 0);
       if (totalMin > 0) {
         minutesByTask.set(task._id, totalMin);
+      }
+
+      // Activity log (last 5 entries) via index
+      const activityEntries = await ctx.db
+        .query("activityLogEntries")
+        .withIndex("by_taskId", (q) => q.eq("taskId", task._id))
+        .collect();
+      activityEntries.sort((a, b) => b._creationTime - a._creationTime);
+      if (activityEntries.length > 0) {
+        latestActivityByTask.set(task._id, activityEntries.slice(0, 5));
       }
     }
 
@@ -372,6 +406,18 @@ export const list = query({
         }
       }
 
+      // Latest activity entries with user names
+      const activityEntries = latestActivityByTask.get(task._id) ?? [];
+      const latestActivityLog = activityEntries.map((entry: any) => {
+        const actUser = userMap.get(entry.userId);
+        return {
+          action: entry.action,
+          userName: actUser?.name ?? "Unknown",
+          avatarUrl: actUser?.avatarUrl,
+          _creationTime: entry._creationTime,
+        };
+      });
+
       return {
         _id: task._id,
         _creationTime: task._creationTime,
@@ -384,6 +430,9 @@ export const list = query({
         billable: task.billable,
         isArchived: task.isArchived,
         parentTaskId: task.parentTaskId,
+        dueDate: task.dueDate,
+        createdAt: task.createdAt,
+        lastEditedAt: task.lastEditedAt,
         // Enriched fields
         projectName: project?.name ?? null,
         clientName: client?.name ?? null,
@@ -399,6 +448,8 @@ export const list = query({
         latestComment,
         subtaskPreview,
         descriptionPreview,
+        lastViewedAt: taskViewsByTask.get(task._id) ?? null,
+        latestActivityLog,
       };
     });
 
@@ -464,6 +515,7 @@ export const create = mutation({
     status: v.optional(taskStatus),
     assigneeIds: v.optional(v.array(v.id("users"))),
     parentTaskId: v.optional(v.id("tasks")),
+    dueDate: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const user = await requireAuth(ctx);
@@ -487,6 +539,7 @@ export const create = mutation({
       projectId = parent.projectId;
     }
 
+    const now = Date.now();
     const taskId = await ctx.db.insert("tasks", {
       title: trimmedTitle,
       projectId,
@@ -495,6 +548,9 @@ export const create = mutation({
       assigneeIds: args.assigneeIds ?? [],
       billable: true, // constraint #19
       isArchived: false,
+      dueDate: args.dueDate,
+      createdAt: now,
+      lastEditedAt: now,
     });
 
     await ctx.runMutation(internal.activityLog.log, {
@@ -519,6 +575,7 @@ export const update = mutation({
     workCategoryId: v.optional(v.union(v.id("workCategories"), v.null())),
     estimate: v.optional(v.union(v.number(), v.null())),
     billable: v.optional(v.boolean()),
+    dueDate: v.optional(v.union(v.number(), v.null())),
   },
   handler: async (ctx, { id, ...updates }) => {
     const user = await requireAuth(ctx);
@@ -581,6 +638,11 @@ export const update = mutation({
       patch.billable = updates.billable;
     }
 
+    if (updates.dueDate !== undefined) {
+      patch.dueDate = updates.dueDate === null ? undefined : updates.dueDate;
+    }
+
+    patch.lastEditedAt = Date.now();
     await ctx.db.patch(id, patch);
 
     if (patch.assigneeIds) {
@@ -623,7 +685,7 @@ export const updateStatus = mutation({
       throw new Error("Admin access required to set status to Done");
     }
 
-    await ctx.db.patch(id, { status });
+    await ctx.db.patch(id, { status, lastEditedAt: Date.now() });
 
     await ctx.runMutation(internal.activityLog.log, {
       taskId: id,
@@ -648,6 +710,7 @@ export const duplicate = mutation({
       throw new Error("Access denied");
     }
 
+    const now = Date.now();
     return await ctx.db.insert("tasks", {
       title: task.title,
       description: task.description,
@@ -658,6 +721,9 @@ export const duplicate = mutation({
       billable: task.billable,
       status: "inbox",
       isArchived: false,
+      dueDate: task.dueDate,
+      createdAt: now,
+      lastEditedAt: now,
       // No parentTaskId — duplicates are always top-level
     });
   },
@@ -820,7 +886,7 @@ export const updateDescription = mutation({
     if (!isAdmin(user) && !task.assigneeIds.includes(user._id)) {
       throw new Error("Access denied");
     }
-    await ctx.db.patch(id, { description });
+    await ctx.db.patch(id, { description, lastEditedAt: Date.now() });
     await ctx.runMutation(internal.activityLog.log, {
       taskId: id,
       userId: user._id,
@@ -994,5 +1060,32 @@ export const bulkArchive = mutation({
     }
 
     return { archived };
+  },
+});
+
+/**
+ * Record that the current user viewed a task (upsert taskViews record).
+ */
+export const recordView = mutation({
+  args: { taskId: v.id("tasks") },
+  handler: async (ctx, { taskId }) => {
+    const user = await requireAuth(ctx);
+
+    const existing = await ctx.db
+      .query("taskViews")
+      .withIndex("by_taskId_userId", (q) =>
+        q.eq("taskId", taskId).eq("userId", user._id),
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, { viewedAt: Date.now() });
+    } else {
+      await ctx.db.insert("taskViews", {
+        taskId,
+        userId: user._id,
+        viewedAt: Date.now(),
+      });
+    }
   },
 });
