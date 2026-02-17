@@ -168,7 +168,13 @@ export function getCycleInfo(yearMonth: string, cycleStartDate: string): CycleIn
   const [y, m] = yearMonth.split("-").map(Number);
   const [sy, sm] = cycleStartDate.split("-").map(Number);
   const monthsSinceStart = (y - sy) * 12 + (m - sm);
-  const monthInCycle = (((monthsSinceStart % CYCLE_LENGTH) + CYCLE_LENGTH) % CYCLE_LENGTH) + 1;
+
+  // Pre-start month: return neutral values
+  if (monthsSinceStart < 0) {
+    return { monthInCycle: 0, isCycleStart: false, isCycleEnd: false, cycleIndex: -1 };
+  }
+
+  const monthInCycle = (monthsSinceStart % CYCLE_LENGTH) + 1;
   const cycleIndex = Math.floor(monthsSinceStart / CYCLE_LENGTH);
   return {
     monthInCycle,

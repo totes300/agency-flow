@@ -349,8 +349,12 @@ export const update = mutation({
 
     // Retainer-specific fields
     if (project.billingType === "retainer") {
-      if (updates.includedHoursPerMonth !== undefined)
+      if (updates.includedHoursPerMonth !== undefined) {
+        if (updates.includedHoursPerMonth <= 0) {
+          throw new Error("Retainer projects require included hours per month");
+        }
         patch.includedHoursPerMonth = updates.includedHoursPerMonth;
+      }
       if (updates.overageRate !== undefined)
         patch.overageRate = updates.overageRate;
       if (updates.rolloverEnabled !== undefined)

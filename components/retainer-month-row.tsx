@@ -311,7 +311,7 @@ function SettlementExtra({
   const cycleWorkedHours = minutesToHours(cycleWorkedMinutes)
   const cyclePoolHours = minutesToHours(cyclePoolMinutes)
   const budgetHours = minutesToHours(budgetMinutes)
-  const totalAmount = (month.extraMinutes / 60) * overageRate
+  const totalAmount = extraHours * overageRate
 
   return (
     <div className="mb-5 overflow-hidden rounded-md border">

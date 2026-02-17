@@ -175,6 +175,14 @@ describe("getCycleInfo", () => {
     expect(info.cycleIndex).toBe(1);
   });
 
+  it("returns neutral values for pre-start month", () => {
+    const info = getCycleInfo("2024-12", "2025-01-01");
+    expect(info.monthInCycle).toBe(0);
+    expect(info.isCycleStart).toBe(false);
+    expect(info.isCycleEnd).toBe(false);
+    expect(info.cycleIndex).toBe(-1);
+  });
+
   it("cycle length is 3", () => {
     expect(CYCLE_LENGTH).toBe(3);
   });
