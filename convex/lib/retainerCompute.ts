@@ -146,13 +146,16 @@ export function minutesToHours(minutes: number): number {
  * Format a period label from a YYYY-MM string.
  * e.g. "2025-01" → "Jan 1 – 31, 2025"
  */
+const MONTH_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
 export function formatPeriodLabel(yearMonth: string): string {
-  const { start, end } = getMonthRange(yearMonth);
+  const { end } = getMonthRange(yearMonth);
   const [, , lastDay] = end.split("-").map(Number);
-  const [year, month] = start.split("-").map(Number);
-  const monthName = new Date(year, month - 1, 1).toLocaleString("en-US", {
-    month: "short",
-  });
+  const [year, month] = yearMonth.split("-").map(Number);
+  const monthName = MONTH_SHORT[month - 1];
   return `${monthName} 1 – ${lastDay}, ${year}`;
 }
 
@@ -197,7 +200,6 @@ export function computeRetainerMonths(
   let firstMonth = startYm;
   let lastMonth = currentYm;
   for (const ym of tasksByMonth.keys()) {
-    if (ym < firstMonth) firstMonth = ym;
     if (ym > lastMonth) lastMonth = ym;
   }
 

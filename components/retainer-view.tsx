@@ -78,7 +78,7 @@ export function RetainerView({
   )
 
   // Use unfiltered data for dashboard when filters are active, otherwise use main data
-  const dashboardSource = hasActiveFilters ? unfilteredData : data
+  const dashboardSource = hasActiveFilters ? (unfilteredData ?? data) : data
 
   // Extract current cycle months for the dashboard
   const { currentCycleMonths, cycleRangeLabel } = useMemo(() => {

@@ -185,15 +185,14 @@ describe("getCycleInfo", () => {
 describe("computeRetainerMonths (rollover ON)", () => {
   it("computes a single month with zero tasks", () => {
     const config = makeConfig({ startDate: "2025-03-01" });
-    const result = computeRetainerMonths(config, new Map());
+    const result = computeRetainerMonths(config, new Map(), "2025-03");
 
-    // Should have months from March to current month
-    expect(result.length).toBeGreaterThanOrEqual(1);
-    const march = result.find((m) => m.yearMonth === "2025-03");
-    expect(march).toBeDefined();
-    expect(march!.workedMinutes).toBe(0);
-    expect(march!.availableMinutes).toBe(600);
-    expect(march!.endBalance).toBe(600);
+    expect(result).toHaveLength(1);
+    const march = result[0];
+    expect(march.yearMonth).toBe("2025-03");
+    expect(march.workedMinutes).toBe(0);
+    expect(march.availableMinutes).toBe(600);
+    expect(march.endBalance).toBe(600);
   });
 
   it("carries balance forward within a cycle", () => {
@@ -364,9 +363,11 @@ describe("computeRetainerMonths (rollover OFF)", () => {
 
   it("zero hours month", () => {
     const config = makeConfig({ rolloverEnabled: false, startDate: "2025-03-01" });
-    const result = computeRetainerMonths(config, new Map());
+    const result = computeRetainerMonths(config, new Map(), "2025-03");
 
-    const march = result.find((m) => m.yearMonth === "2025-03")!;
+    expect(result).toHaveLength(1);
+    const march = result[0];
+    expect(march.yearMonth).toBe("2025-03");
     expect(march.workedMinutes).toBe(0);
     expect(march.endBalance).toBe(600);
     expect(march.unusedMinutes).toBe(600);

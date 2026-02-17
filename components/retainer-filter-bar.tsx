@@ -205,11 +205,9 @@ export function RetainerFilterBar({
   const handleCustomRangeSelect = useCallback(
     (range: DateRange | undefined) => {
       setCustomRange(range)
-      if (range?.from) {
+      if (range?.from && range.to) {
         const fromYm = `${range.from.getFullYear()}-${String(range.from.getMonth() + 1).padStart(2, "0")}`
-        const toYm = range.to
-          ? `${range.to.getFullYear()}-${String(range.to.getMonth() + 1).padStart(2, "0")}`
-          : fromYm
+        const toYm = `${range.to.getFullYear()}-${String(range.to.getMonth() + 1).padStart(2, "0")}`
 
         onFiltersChange({
           ...filtersRef.current,

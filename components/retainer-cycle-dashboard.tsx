@@ -127,6 +127,7 @@ export function RetainerCycleDashboard({
       {/* ─── Bottom section: per-month mini-cards (rollover only) ─── */}
       {rolloverEnabled && cycleMonths.length > 0 && (
         <div className="border-t bg-muted/20 px-6 py-4">
+          {/* Assumes CYCLE_LENGTH === 3 — if changed, add grid-cols-N to Tailwind safelist */}
           <div className="grid grid-cols-3 gap-4">
             {cycleMonths.map((month) => (
               <MiniMonthCard
@@ -170,7 +171,7 @@ function MiniMonthCard({
 
   // Month short name from yearMonth
   const [year, m] = month.yearMonth.split("-").map(Number)
-  const monthName = new Date(year, m - 1, 1).toLocaleString("en-US", {
+  const monthName = new Date(year, m - 1, 1).toLocaleString(undefined, {
     month: "short",
   })
 

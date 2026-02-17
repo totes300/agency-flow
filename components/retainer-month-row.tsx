@@ -149,18 +149,18 @@ export function RetainerMonthRow({
                             ti < group.tasks.length - 1 && "border-b border-muted-foreground/8",
                           )}
                         >
-                          <span className="w-[3rem] shrink-0 text-muted-foreground/40 text-xs tabular-nums">
+                          <span className="w-[2.5rem] shrink-0 text-muted-foreground/40 text-xs tabular-nums">
                             {shortDate}
                           </span>
                           <button
                             type="button"
                             data-task-id={task.taskId}
-                            className="w-[13rem] shrink-0 text-[13px] font-medium line-clamp-2 text-left hover:underline cursor-pointer"
+                            className="min-w-0 flex-1 text-[13px] font-medium truncate text-left hover:underline cursor-pointer"
                             onClick={handleTaskClick}
                           >
                             {task.title}
                           </button>
-                          <span className="min-w-0 flex-1 text-muted-foreground/45 line-clamp-2 text-xs leading-relaxed mr-12">
+                          <span className="hidden sm:block min-w-0 flex-1 text-muted-foreground/45 truncate text-xs leading-relaxed mr-12">
                             {task.description ?? ""}
                           </span>
                           <span className="w-[4rem] shrink-0 text-right text-[13px] text-muted-foreground tabular-nums">

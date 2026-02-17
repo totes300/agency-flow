@@ -138,11 +138,11 @@ Generated: 2026-02-16
 
 | T Key | Spec String | Code String | Location | Used in UI? |
 |---|---|---|---|---|
-| `startBudgetOnly` | `` `${b}h budget` `` | `` `${b}h budget` `` | `retainer-strings.ts:13` | ⚠️ NOT directly — `getStartedWithSubtitle` at `retainerCompute.ts:377` duplicates the string |
-| `startCycleStart` | `` `${b}h budget · cycle start` `` | `` `${b}h budget · cycle start` `` | `retainer-strings.ts:14` | ⚠️ NOT directly — duplicated at `retainerCompute.ts:369` |
-| `startWithCarry` | `` `${b}h budget + ${n}h from last month` `` | `` `${b}h budget + ${n}h from last month` `` | `retainer-strings.ts:15` | ⚠️ NOT directly — duplicated at `retainerCompute.ts:372` |
-| `startWithDeduction` | `` `${b}h budget – ${n}h from last month` `` | `` `${b}h budget – ${n}h from last month` `` | `retainer-strings.ts:16-17` | ⚠️ NOT directly — duplicated at `retainerCompute.ts:375` |
-| `startNoRollover` | `` `${b}h monthly budget` `` | `` `${b}h monthly budget` `` | `retainer-strings.ts:18` | ⚠️ NOT directly — duplicated at `retainerCompute.ts:366` |
+| `startBudgetOnly` | `` `${b}h budget` `` | `` `${b}h budget` `` | `retainer-strings.ts:13` | ✅ Imported from `T` in `retainerCompute.ts:419` |
+| `startCycleStart` | `` `${b}h budget · cycle start` `` | `` `${b}h budget · cycle start` `` | `retainer-strings.ts:14` | ✅ Imported from `T` in `retainerCompute.ts:411` |
+| `startWithCarry` | `` `${b}h budget + ${n}h from last month` `` | `` `${b}h budget + ${n}h from last month` `` | `retainer-strings.ts:15` | ✅ Imported from `T` in `retainerCompute.ts:414` |
+| `startWithDeduction` | `` `${b}h budget – ${n}h from last month` `` | `` `${b}h budget – ${n}h from last month` `` | `retainer-strings.ts:16-17` | ✅ Imported from `T` in `retainerCompute.ts:417` |
+| `startNoRollover` | `` `${b}h monthly budget` `` | `` `${b}h monthly budget` `` | `retainer-strings.ts:18` | ✅ Imported from `T` in `retainerCompute.ts:408` |
 
 ### Hours-used subtitle
 

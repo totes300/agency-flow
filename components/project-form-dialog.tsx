@@ -654,7 +654,7 @@ export function ProjectFormDialog({
                     required={billingType === "retainer"}
                   />
                   {isEditMode && (project?.includedHoursPerMonth ?? 0) > 0 && includedHours && (
-                    parseFloat(includedHours) * 60 !== project.includedHoursPerMonth
+                    Math.round(parseFloat(includedHours) * 60) !== (project?.includedHoursPerMonth ?? 0)
                   ) && (
                     <p className="text-muted-foreground text-xs">
                       This applies to all months. For mid-project rate changes, contact support.
@@ -674,7 +674,7 @@ export function ProjectFormDialog({
                     placeholder="e.g., 150"
                   />
                   {isEditMode && project?.overageRate !== undefined && overageRate && (
-                    parseFloat(overageRate) !== project.overageRate
+                    Math.abs(Number(overageRate) - Number(project?.overageRate ?? 0)) > 0.001
                   ) && (
                     <p className="text-muted-foreground text-xs">
                       This applies to all months. For mid-project rate changes, contact support.

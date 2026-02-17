@@ -102,5 +102,8 @@ export function getStatusBadgeProps(variant: StatusVariant): {
         "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300",
     }
   }
+  if (variant === "secondary") {
+    return { variant: "secondary", className: "" }
+  }
   return { variant: "outline", className: "" }
 }

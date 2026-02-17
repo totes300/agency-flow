@@ -46,6 +46,7 @@ export const getComputedView = query({
       .collect();
 
     // Fetch all time entries for all project tasks and build task records
+    // TODO: consider by_projectId index on timeEntries if task count per project grows large
     const activeTasks = allTasks.filter((t) => !t.isArchived);
     const entriesByTask = await Promise.all(
       activeTasks.map(async (task) => {
@@ -58,12 +59,14 @@ export const getComputedView = query({
     );
 
     // Extract plain text from Tiptap JSON description
-    const extractText = (node: any): string => {
+    const extractText = (node: unknown): string => {
       if (typeof node === "string") return node;
+      if (node == null || typeof node !== "object") return "";
+      const n = node as Record<string, unknown>;
       let text = "";
-      if (node.text) text += node.text;
-      if (node.content) {
-        for (const child of node.content) {
+      if (typeof n.text === "string") text += n.text;
+      if (Array.isArray(n.content)) {
+        for (const child of n.content) {
           text += extractText(child);
         }
       }
@@ -183,6 +186,8 @@ export const getComputedView = query({
 /**
  * Get filter options for the retainer view.
  * Returns available year-months (from time entries) and work categories.
+ *
+ * NOTE: overlaps with getComputedView queries; acceptable for small data volumes
  */
 export const getFilterOptions = query({
   args: {
