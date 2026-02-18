@@ -1,4 +1,5 @@
 import type { Id } from "@/convex/_generated/dataModel"
+import type { TaskStatusKey } from "./task-config"
 
 /**
  * Enriched task shape returned from tasks.list and tasks.get queries.
@@ -8,7 +9,7 @@ export type EnrichedTask = {
   _id: Id<"tasks">
   _creationTime: number
   title: string
-  status: "inbox" | "today" | "next_up" | "admin_review" | "stuck" | "done"
+  status: TaskStatusKey
   projectId?: Id<"projects">
   assigneeIds: Id<"users">[]
   workCategoryId?: Id<"workCategories">
@@ -25,9 +26,9 @@ export type EnrichedTask = {
   // Enriched fields from list query
   projectName: string | null
   clientName: string | null
-  clientId: string | null
-  projectBillingType: string | null
-  assignees: Array<{ _id: Id<"users">; name: string; avatarUrl?: string } | null>
+  clientId: Id<"clients"> | null
+  projectBillingType: "fixed" | "retainer" | "t_and_m" | null
+  assignees: Array<{ _id: Id<"users">; name: string; avatarUrl?: string }>
   workCategoryName: string | null
   totalMinutes: number
   // Fields only on list query (not get)
@@ -41,7 +42,7 @@ export type EnrichedTask = {
     content: string
     _creationTime: number
   }
-  subtaskPreview?: Array<{ _id: string; title: string; status: string }>
+  subtaskPreview?: Array<{ _id: Id<"tasks">; title: string; status: TaskStatusKey }>
   descriptionPreview?: string
   lastViewedAt?: number | null
   latestActivityLog?: Array<{
@@ -52,9 +53,9 @@ export type EnrichedTask = {
   }>
   // Fields only on get query (not list)
   subtasks?: Array<{
-    _id: string
+    _id: Id<"tasks">
     title: string
-    status: string
+    status: TaskStatusKey
     sortOrder?: number
     _creationTime: number
   }>

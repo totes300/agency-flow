@@ -1,5 +1,6 @@
 import { MutationCtx } from "../_generated/server";
 import { Doc } from "../_generated/dataModel";
+import { logActivity } from "./activityLogger";
 
 const MAX_TIMER_MINUTES = 16 * 60; // 16 hours
 
@@ -13,6 +14,7 @@ export async function stopUserTimer(
 ): Promise<{ elapsedMinutes: number } | null> {
   if (!user.timerTaskId || !user.timerStartedAt) return null;
 
+  const taskId = user.timerTaskId;
   const now = Date.now();
   const elapsedMs = now - user.timerStartedAt;
   const elapsedMinutes = Math.min(Math.ceil(elapsedMs / 60000), MAX_TIMER_MINUTES);
@@ -21,7 +23,7 @@ export async function stopUserTimer(
     const today = new Date(now);
     const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
     await ctx.db.insert("timeEntries", {
-      taskId: user.timerTaskId,
+      taskId,
       userId: user._id,
       date: dateStr,
       durationMinutes: elapsedMinutes,
@@ -32,6 +34,12 @@ export async function stopUserTimer(
   await ctx.db.patch(user._id, {
     timerTaskId: undefined,
     timerStartedAt: undefined,
+  });
+
+  await logActivity(ctx, {
+    taskId,
+    userId: user._id,
+    action: `stopped timer (${elapsedMinutes}m)`,
   });
 
   return { elapsedMinutes };

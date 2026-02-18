@@ -1,8 +1,15 @@
 "use client"
 
-import { useRef, useEffect } from "react"
+import { useRef, useEffect, useMemo, useCallback } from "react"
+import { Filter as FilterIcon, X } from "lucide-react"
 import { StatusIcon } from "@/components/icons/status-icons"
-import { UiIcon } from "@/components/icons/ui-icons"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
 import {
   STATUS_CONFIG,
   STATUS_ORDER,
@@ -10,6 +17,8 @@ import {
   DATE_OPERATORS,
   FILTER_DEFS,
   type TaskStatusKey,
+  type FilterProperty,
+  type DateOperator,
 } from "@/lib/task-config"
 import type { Filter, FilterMode, ActiveTab, GroupByV2 } from "@/hooks/use-task-filters-v2"
 import type { EnrichedTask } from "@/lib/types"
@@ -31,13 +40,22 @@ interface FilterBarProps {
   onSetGroupBy: (g: GroupByV2) => void
   onSetFilterMenuOpen: (open: boolean) => void
   onSetFilterEditId: (id: string | null) => void
-  onAddFilter: (property: string) => void
+  onAddFilter: (property: FilterProperty) => void
   onUpdateFilter: (id: string, updates: Partial<Filter>) => void
   onRemoveFilter: (id: string) => void
   onClearFilters: () => void
   onToggleFilterValue: (id: string, val: string) => void
   onToggleFilterMode: () => void
 }
+
+// ── Grouping options ────────────────────────────────────────────────────
+
+const GROUPING_OPTIONS: readonly { v: GroupByV2; l: string }[] = [
+  { v: "none", l: "List" },
+  { v: "client", l: "Client" },
+  { v: "status", l: "Status" },
+  { v: "category", l: "Type" },
+] as const
 
 // ── Component ───────────────────────────────────────────────────────────
 
@@ -65,12 +83,21 @@ export function TaskFilterBarV2({
 }: FilterBarProps) {
   const filterMenuRef = useRef<HTMLDivElement>(null)
 
-  // Dynamic values for filters
-  const allClients = [...new Set(tasks.map((t) => t.clientName).filter(Boolean) as string[])]
-  const allAssignees = [...new Set(tasks.flatMap((t) => t.assignees?.map((a: any) => a?.name).filter(Boolean) ?? []))]
-  const allCategories = [...new Set(tasks.map((t) => t.workCategoryName).filter(Boolean) as string[])]
+  // Memoize dynamic filter values
+  const allClients = useMemo(
+    () => [...new Set(tasks.map((t) => t.clientName).filter(Boolean) as string[])],
+    [tasks],
+  )
+  const allAssignees = useMemo(
+    () => [...new Set(tasks.flatMap((t) => t.assignees?.map((a) => a.name).filter(Boolean) ?? []))],
+    [tasks],
+  )
+  const allCategories = useMemo(
+    () => [...new Set(tasks.map((t) => t.workCategoryName).filter(Boolean) as string[])],
+    [tasks],
+  )
 
-  const getFilterValues = (property: string) => {
+  const getFilterValues = useCallback((property: FilterProperty) => {
     switch (property) {
       case "status":
         return STATUS_ORDER.map((s) => ({ key: s, label: STATUS_CONFIG[s].label }))
@@ -87,7 +114,7 @@ export function TaskFilterBarV2({
       default:
         return []
     }
-  }
+  }, [allAssignees, allClients, allCategories])
 
   // Close filter menus on outside click
   useEffect(() => {
@@ -103,86 +130,93 @@ export function TaskFilterBarV2({
   }, [filterMenuOpen, filterEditId, filters.length, onSetFilterEditId, onSetFilterMenuOpen])
 
   // Tabs
-  const tabs: Array<{ key: ActiveTab; label: string; count: number }> = [
-    { key: "active", label: "Active", count: activeCount },
-    { key: "all", label: "All", count: totalCount },
-    ...STATUS_ORDER.map((s) => ({
-      key: s as ActiveTab,
-      label: STATUS_CONFIG[s].label,
-      count: statusCounts[s] || 0,
-    })),
-  ]
+  const tabs = useMemo<Array<{ key: ActiveTab; label: string; count: number }>>(
+    () => [
+      { key: "active", label: "Active", count: activeCount },
+      { key: "all", label: "All", count: totalCount },
+      ...STATUS_ORDER.map((s) => ({
+        key: s as ActiveTab,
+        label: STATUS_CONFIG[s].label,
+        count: statusCounts[s] || 0,
+      })),
+    ],
+    [activeCount, totalCount, statusCounts],
+  )
 
   return (
     <>
       {/* Tabs row */}
-      <div className="px-3 md:px-5 pt-2 pb-0 bg-white border-b border-[#e5e7eb] flex items-end justify-between gap-2">
-        <div className="flex items-end gap-0 overflow-x-auto scrollbar-none">
-          {tabs.map((tab) => {
-            const isAct = activeTab === tab.key
-            return (
-              <button
-                key={tab.key}
-                onClick={() => onSetActiveTab(tab.key)}
-                className="flex items-center gap-[5px] px-3 py-2 border-b-2 text-[12.5px] cursor-pointer bg-transparent border-none font-inherit whitespace-nowrap"
-                style={{
-                  borderBottomColor: isAct ? "#111827" : "transparent",
-                  color: isAct ? "#111827" : "#6b7280",
-                  fontWeight: isAct ? 600 : 450,
-                }}
-              >
-                {tab.label}
-                <span
-                  className="text-[10.5px] font-semibold rounded-[10px] px-1.5 leading-4 min-w-[18px] text-center"
-                  style={{
-                    background: isAct ? "#111827" : "#e5e7eb",
-                    color: isAct ? "#fff" : "#6b7280",
-                  }}
+      <div className="px-4 pt-2 pb-0 bg-background border-b border-task-border flex items-end justify-between gap-2">
+        <Tabs value={activeTab} onValueChange={(v) => onSetActiveTab(v as ActiveTab)} className="flex-row gap-0">
+          <TabsList variant="line" className="h-auto gap-0 overflow-x-auto scrollbar-none">
+            {tabs.map((tab) => {
+              const isAct = activeTab === tab.key
+              return (
+                <TabsTrigger
+                  key={tab.key}
+                  value={tab.key}
+                  className="gap-1.5 px-3 py-2 text-xs rounded-none whitespace-nowrap"
                 >
-                  {tab.count}
-                </span>
-              </button>
-            )
-          })}
+                  {tab.label}
+                  <Badge
+                    variant={isAct ? "default" : "secondary"}
+                    className={cn(
+                      "h-4 min-w-[18px] px-1.5 text-[10px] font-semibold rounded-full",
+                      isAct
+                        ? "bg-task-foreground text-white"
+                        : "bg-task-border text-task-muted",
+                    )}
+                  >
+                    {tab.count}
+                  </Badge>
+                </TabsTrigger>
+              )
+            })}
+          </TabsList>
+        </Tabs>
+
+        <div className="flex items-center gap-2 mb-1.5 shrink-0">
           {/* Filter button */}
-          <button
+          <Button
+            variant={filters.length > 0 ? "outline" : "ghost"}
+            size="xs"
             onClick={() => {
               onSetFilterMenuOpen(!filterMenuOpen)
               onSetFilterEditId(null)
             }}
-            className="inline-flex items-center gap-1 text-[11.5px] font-medium rounded-[5px] px-[9px] py-[3px] ml-1.5 mb-[7px] cursor-pointer font-inherit transition-all duration-[120ms]"
-            style={{
-              color: filters.length > 0 ? "#374151" : "#9ca3af",
-              border: filters.length > 0 ? "1px solid #9ca3af" : "1px dashed #d1d5db",
-              background: filters.length > 0 ? "#f6f7f8" : "transparent",
-            }}
+            className={cn(
+              "text-xs font-medium",
+              filters.length > 0
+                ? "text-task-foreground-secondary border-task-muted-light bg-task-surface-subtle"
+                : "text-task-muted-light border-dashed border-task-separator",
+            )}
           >
-            <UiIcon type="filter" size={11} />
+            <FilterIcon size={11} />
             Filter{filters.length > 0 && ` \u00b7 ${filters.length}`}
-          </button>
-        </div>
+          </Button>
 
-        {/* Grouping */}
-        <div className="hidden md:flex items-center gap-[1px] bg-[#f3f4f6] rounded-[7px] p-0.5 mb-1.5 shrink-0">
-          {([
-            { v: "none" as GroupByV2, l: "List" },
-            { v: "client" as GroupByV2, l: "Client" },
-            { v: "status" as GroupByV2, l: "Status" },
-            { v: "category" as GroupByV2, l: "Type" },
-          ]).map((g) => (
-            <button
-              key={g.v}
-              onClick={() => onSetGroupBy(g.v)}
-              className="px-2.5 py-1 rounded-[5px] border-none text-xs font-[550] cursor-pointer font-inherit"
-              style={{
-                background: groupBy === g.v ? "#fff" : "transparent",
-                boxShadow: groupBy === g.v ? "0 1px 2px rgba(0,0,0,0.06)" : "none",
-                color: groupBy === g.v ? "#111827" : "#6b7280",
-              }}
-            >
-              {g.l}
-            </button>
-          ))}
+          {/* Grouping */}
+          <ToggleGroup
+            type="single"
+            value={groupBy}
+            onValueChange={(v) => { if (v) onSetGroupBy(v as GroupByV2) }}
+            className="hidden md:flex bg-task-surface rounded-md p-0.5"
+          >
+            {GROUPING_OPTIONS.map((g) => (
+              <ToggleGroupItem
+                key={g.v}
+                value={g.v}
+                className={cn(
+                  "px-2.5 py-1 rounded text-xs font-medium h-auto",
+                  groupBy === g.v
+                    ? "bg-background text-task-foreground shadow-sm data-[state=on]:bg-background"
+                    : "bg-transparent text-task-muted data-[state=off]:bg-transparent",
+                )}
+              >
+                {g.l}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
         </div>
       </div>
 
@@ -190,14 +224,12 @@ export function TaskFilterBarV2({
       {(filters.length > 0 || filterMenuOpen) && (
         <div
           ref={filterMenuRef}
-          className="px-5 py-1.5 bg-[#fafbfc] border-b border-[#e5e7eb] flex items-center gap-1.5 flex-wrap min-h-9"
-          style={{ animation: "filterSlideIn 0.15s ease" }}
+          className="px-4 py-1.5 bg-task-surface-subtle border-b border-task-border flex items-center gap-1.5 flex-wrap min-h-9 animate-[filterSlideIn_0.15s_ease]"
         >
           {/* Active filter pills */}
           {filters.map((f, i) => {
             const def = FILTER_DEFS.find((d) => d.property === f.property)
             if (!def) return null
-            const isEditing = filterEditId === f.id
             const filterValues = getFilterValues(f.property)
             const valueLabels = f.values.map((v) => {
               const found = filterValues.find((dv) => dv.key === v)
@@ -209,131 +241,142 @@ export function TaskFilterBarV2({
               <span key={f.id} className="inline-flex items-center gap-1.5">
                 {i > 0 && (
                   <button
+                    type="button"
                     onClick={onToggleFilterMode}
-                    className="text-[11px] text-[#9ca3af] font-medium border-none bg-transparent cursor-pointer font-inherit px-0.5 hover:text-[#374151]"
+                    aria-label={`Toggle filter combination mode. Currently matching ${filterMode === "all" ? "all" : "any"} filters`}
+                    className="text-[11px] text-task-muted-light font-medium border-none bg-transparent cursor-pointer font-inherit px-0.5 hover:text-task-foreground-secondary"
                   >
                     {filterMode === "all" ? "and" : "or"}
                   </button>
                 )}
                 <div className="inline-flex items-center relative">
                   <div
-                    className="inline-flex items-center gap-0 text-xs rounded-[6px] bg-white overflow-hidden transition-all duration-[120ms]"
-                    style={{
-                      border: isEditing ? "1px solid #9ca3af" : "1px solid #e0e2e5",
-                      boxShadow: isEditing ? "0 0 0 2px rgba(156,163,175,0.1)" : "none",
-                    }}
+                    className={cn(
+                      "inline-flex items-center gap-0 text-xs rounded-md bg-background overflow-hidden transition-all duration-[120ms]",
+                      filterEditId === f.id
+                        ? "border border-task-muted-light shadow-[0_0_0_2px_rgba(156,163,175,0.1)]"
+                        : "border border-task-border",
+                    )}
                   >
-                    <span className="py-[3px] px-1.5 pl-2 text-[#6b7280] font-medium border-r border-[#f0f0f0]">
+                    <span className="py-[3px] px-1.5 pl-2 text-task-muted font-medium border-r border-task-border-light">
                       {def.label}
                     </span>
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation()
                         if (isDate) {
                           const ops = DATE_OPERATORS
-                          const idx = ops.indexOf(f.operator as any)
-                          onUpdateFilter(f.id, { operator: ops[(idx + 1) % ops.length] })
+                          const idx = ops.indexOf(f.operator as DateOperator)
+                          const nextIdx = idx === -1 ? 0 : (idx + 1) % ops.length
+                          onUpdateFilter(f.id, { operator: ops[nextIdx] })
                         } else {
                           onUpdateFilter(f.id, { operator: f.operator === "is" ? "is not" : "is" })
                         }
                       }}
-                      className="py-[3px] px-1.5 text-[#9ca3af] font-medium border-none bg-transparent cursor-pointer font-inherit text-xs border-r border-[#f0f0f0]"
-                      style={{ borderRight: "1px solid #f0f0f0" }}
+                      className="py-[3px] px-1.5 text-task-muted-light font-medium border-none bg-transparent cursor-pointer font-inherit text-xs"
                     >
                       {f.operator}
                     </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onSetFilterEditId(isEditing ? null : f.id)
-                      }}
-                      className="py-[3px] px-2 font-[550] border-none bg-transparent cursor-pointer font-inherit text-xs"
-                      style={{ color: f.values.length > 0 ? "#111827" : "#9ca3af" }}
+
+                    {/* Value selector popover */}
+                    <Popover
+                      open={filterEditId === f.id}
+                      onOpenChange={(open) => onSetFilterEditId(open ? f.id : null)}
                     >
-                      {f.values.length > 0 ? valueLabels.join(", ") : "select\u2026"}
-                    </button>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className={cn(
+                            "py-[3px] px-2 font-medium border-none bg-transparent cursor-pointer font-inherit text-xs",
+                            f.values.length > 0 ? "text-task-foreground" : "text-task-muted-light",
+                          )}
+                        >
+                          {f.values.length > 0 ? valueLabels.join(", ") : "select\u2026"}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        align="start"
+                        className="p-1 min-w-[180px]"
+                        onOpenAutoFocus={(e) => e.preventDefault()}
+                      >
+                        {isDate ? (
+                          <div role="listbox" aria-label={`${def.label} options`}>
+                            {filterValues.map((v) => {
+                              const selected = f.values[0] === v.key
+                              return (
+                                <button
+                                  key={v.key}
+                                  type="button"
+                                  role="option"
+                                  aria-selected={selected}
+                                  onClick={() => onToggleFilterValue(f.id, v.key)}
+                                  className={cn(
+                                    "flex w-full items-center gap-2 py-1.5 px-2.5 rounded-md cursor-pointer text-xs text-left",
+                                    selected
+                                      ? "font-semibold text-task-foreground bg-task-surface"
+                                      : "font-normal text-task-foreground-tertiary hover:bg-task-surface-hover",
+                                  )}
+                                >
+                                  <span
+                                    className="w-3.5 h-3.5 rounded-full shrink-0 border-task-separator bg-background box-border"
+                                    style={{
+                                      border: selected ? "4px solid var(--task-foreground)" : "1.5px solid var(--task-separator)",
+                                    }}
+                                  />
+                                  {v.label}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <div role="listbox" aria-label={`${def.label} options`}>
+                            {filterValues.length === 0 && (
+                              <div className="py-2 px-3 text-xs text-task-muted-light">No options available</div>
+                            )}
+                            {filterValues.map((v) => {
+                              const selected = f.values.includes(v.key)
+                              return (
+                                <button
+                                  key={v.key}
+                                  type="button"
+                                  role="option"
+                                  aria-selected={selected}
+                                  onClick={() => onToggleFilterValue(f.id, v.key)}
+                                  className={cn(
+                                    "flex w-full items-center gap-2 py-1.5 px-2.5 rounded-md cursor-pointer text-xs text-left hover:bg-task-surface-hover",
+                                    selected
+                                      ? "font-semibold text-task-foreground bg-task-surface"
+                                      : "font-normal text-task-foreground-tertiary",
+                                  )}
+                                >
+                                  <Checkbox
+                                    checked={selected}
+                                    className="size-3.5 rounded border-task-separator data-checked:bg-task-foreground data-checked:border-task-foreground pointer-events-none"
+                                    tabIndex={-1}
+                                  />
+                                  {f.property === "status" && <StatusIcon status={v.key} size={14} />}
+                                  {v.label}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </PopoverContent>
+                    </Popover>
+
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation()
                         onRemoveFilter(f.id)
                       }}
-                      className="py-[3px] px-1.5 text-[#c2c7ce] border-none bg-transparent cursor-pointer flex items-center hover:text-[#6b7280]"
+                      aria-label={`Remove ${def.label} filter`}
+                      className="py-[3px] px-1.5 text-task-muted-lightest border-none bg-transparent cursor-pointer flex items-center hover:text-task-muted"
                     >
-                      <UiIcon type="x" size={10} />
+                      <X size={10} />
                     </button>
                   </div>
-
-                  {/* Dropdown */}
-                  {isEditing && (
-                    <div
-                      className="absolute top-full left-0 mt-1 z-[300] bg-white border border-[#e5e7eb] rounded-[10px] shadow-[0_8px_24px_rgba(0,0,0,0.12)] p-1 min-w-[180px]"
-                      style={{ animation: "popIn 0.12s ease" }}
-                    >
-                      {isDate
-                        ? filterValues.map((v) => {
-                            const selected = f.values[0] === v.key
-                            return (
-                              <div
-                                key={v.key}
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  onToggleFilterValue(f.id, v.key)
-                                }}
-                                className="flex items-center gap-2 py-1.5 px-2.5 rounded-[6px] cursor-pointer text-[12.5px]"
-                                style={{
-                                  fontWeight: selected ? 600 : 450,
-                                  color: selected ? "#111827" : "#4b5563",
-                                  background: selected ? "#f3f4f6" : "transparent",
-                                }}
-                              >
-                                <span
-                                  className="w-3.5 h-3.5 rounded-full shrink-0"
-                                  style={{
-                                    border: selected ? "4px solid #111827" : "1.5px solid #d1d5db",
-                                    background: "#fff",
-                                    boxSizing: "border-box",
-                                  }}
-                                />
-                                {v.label}
-                              </div>
-                            )
-                          })
-                        : filterValues.map((v) => {
-                            const selected = f.values.includes(v.key)
-                            return (
-                              <div
-                                key={v.key}
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  onToggleFilterValue(f.id, v.key)
-                                }}
-                                className="flex items-center gap-2 py-1.5 px-2.5 rounded-[6px] cursor-pointer text-[12.5px] hover:bg-[#f8f9fb]"
-                                style={{
-                                  fontWeight: selected ? 600 : 450,
-                                  color: selected ? "#111827" : "#4b5563",
-                                  background: selected ? "#f3f4f6" : undefined,
-                                }}
-                              >
-                                <span
-                                  className="w-3.5 h-3.5 rounded-[3px] shrink-0 flex items-center justify-center"
-                                  style={{
-                                    border: selected ? "none" : "1.5px solid #d1d5db",
-                                    background: selected ? "#111827" : "transparent",
-                                  }}
-                                >
-                                  {selected && (
-                                    <svg width="9" height="9" viewBox="0 0 16 16" fill="none">
-                                      <path d="M4 8.5L7 11.5L12 5" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                                    </svg>
-                                  )}
-                                </span>
-                                {f.property === "status" && <StatusIcon status={v.key} size={14} />}
-                                {v.label}
-                              </div>
-                            )
-                          })}
-                    </div>
-                  )}
                 </div>
               </span>
             )
@@ -344,19 +387,23 @@ export function TaskFilterBarV2({
             {FILTER_DEFS.filter((def) => !filters.some((f) => f.property === def.property)).map((def) => (
               <button
                 key={def.property}
+                type="button"
                 onClick={() => onAddFilter(def.property)}
-                className="text-[11.5px] font-medium text-[#9ca3af] border border-dashed border-[#d9dce0] rounded-[5px] px-2 py-[2px] bg-transparent cursor-pointer font-inherit transition-all duration-100 hover:text-[#374151] hover:border-[#9ca3af]"
+                aria-label={`Add ${def.label} filter`}
+                className="text-xs font-medium text-task-muted-light border border-dashed border-task-separator rounded px-2 py-0.5 bg-transparent cursor-pointer font-inherit transition-all duration-100 hover:text-task-foreground-secondary hover:border-task-muted-light"
               >
                 {def.label}
               </button>
             ))}
             {filters.length > 0 && (
-              <button
+              <Button
+                variant="ghost"
+                size="xs"
                 onClick={onClearFilters}
-                className="text-[11px] text-[#c2c7ce] border-none bg-transparent cursor-pointer font-inherit font-medium px-1.5 py-[2px] hover:text-[#6b7280]"
+                className="text-[11px] text-task-muted-lightest font-medium px-1.5 py-0.5 h-auto hover:text-task-muted"
               >
                 Clear all
-              </button>
+              </Button>
             )}
           </div>
         </div>

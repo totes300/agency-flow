@@ -5,9 +5,10 @@ import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
 import { toast } from "sonner"
-import { UiIcon } from "@/components/icons/ui-icons"
+import { Pause, Play, Clock } from "lucide-react"
 import { formatDuration, formatElapsed } from "@/lib/format"
 import { useTimerTick } from "@/hooks/use-timer-tick"
+import { cn } from "@/lib/utils"
 
 interface TaskTimerPillProps {
   taskId: Id<"tasks">
@@ -23,16 +24,18 @@ export const TaskTimerPill = memo(function TaskTimerPill({
   hasProject,
 }: TaskTimerPillProps) {
   const timerStatus = useQuery(api.timer.getStatus) ?? null
-  const isRunningOnThis =
-    timerStatus?.isRunning === true && "taskId" in timerStatus && timerStatus.taskId === taskId
 
-  if (isRunningOnThis && "startedAt" in timerStatus!) {
+  const isRunningOnThis =
+    timerStatus !== null &&
+    timerStatus.isRunning === true &&
+    "taskId" in timerStatus &&
+    timerStatus.taskId === taskId
+
+  if (isRunningOnThis && timerStatus !== null && "startedAt" in timerStatus) {
     return (
       <ActiveTimerPill
         taskId={taskId}
-        totalMinutes={totalMinutes}
         startedAt={timerStatus.startedAt}
-        hasProject={hasProject}
       />
     )
   }
@@ -49,16 +52,12 @@ export const TaskTimerPill = memo(function TaskTimerPill({
 
 // ── Active Timer (subscribes to tick) ─────────────────────────────────
 
-function ActiveTimerPill({
+const ActiveTimerPill = memo(function ActiveTimerPill({
   taskId,
-  totalMinutes,
   startedAt,
-  hasProject,
 }: {
   taskId: Id<"tasks">
-  totalMinutes: number
   startedAt: number
-  hasProject: boolean
 }) {
   const now = useTimerTick()
   const stopTimer = useMutation(api.timer.stop)
@@ -99,19 +98,13 @@ function ActiveTimerPill({
     <button
       onClick={handleClick}
       aria-label="Stop timer"
-      className="inline-flex items-center gap-[5px] py-[3px] px-2 pl-1.5 rounded-lg border border-[#c25852] bg-[#fdf5f4] text-[#c25852] text-[12.5px] font-[650] cursor-pointer transition-all duration-150 whitespace-nowrap"
-      style={{
-        fontVariantNumeric: "tabular-nums",
-        animation: "timerPulse 2s ease-in-out infinite",
-      }}
+      className="inline-flex items-center gap-[5px] py-[3px] px-2 pl-1.5 rounded-lg border border-task-timer bg-task-timer-bg text-task-timer text-[12.5px] font-[650] cursor-pointer transition-all duration-150 whitespace-nowrap tabular-nums animate-[timerPulse_2s_ease-in-out_infinite]"
     >
-      <span className="flex w-3 h-3">
-        <UiIcon type="pause" size={12} color="#c25852" />
-      </span>
-      <span>{elapsed}</span>
+      <Pause size={12} className="text-task-timer" />
+      <span aria-live="polite" aria-atomic="true">{elapsed}</span>
     </button>
   )
-}
+})
 
 // ── Idle Timer ────────────────────────────────────────────────────────
 
@@ -130,9 +123,7 @@ function IdleTimerPill({
   const startTimer = useMutation(api.timer.start)
 
   const hasTime = totalMinutes > 0
-  const h = Math.floor(totalMinutes / 60)
-  const m = totalMinutes % 60
-  const display = `${h}:${String(m).padStart(2, "0")}`
+  const display = formatDuration(totalMinutes)
 
   const handleClick = useCallback(
     async (e: React.MouseEvent) => {
@@ -158,26 +149,34 @@ function IdleTimerPill({
       onClick={handleClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className="inline-flex items-center gap-[5px] py-[3px] px-2 pl-1.5 rounded-lg border transition-all duration-150 whitespace-nowrap"
-      style={{
-        borderColor: isDone ? "#e5e7eb" : hovered ? "#b0b5bd" : "#e0e2e5",
-        background: isDone ? "#f9fafb" : hovered ? "#f6f7f8" : "#fff",
-        color: isDone ? "#b0b5bd" : hasTime ? "#374151" : "#c2c7ce",
-        fontSize: 12.5,
-        fontWeight: hasTime ? 550 : 450,
-        fontVariantNumeric: "tabular-nums",
-        cursor: isDone ? "default" : hasProject ? "pointer" : "not-allowed",
-      }}
+      className={cn(
+        "inline-flex items-center gap-[5px] py-[3px] px-2 pl-1.5 rounded-lg border transition-all duration-150 whitespace-nowrap text-[12.5px] tabular-nums",
+        isDone
+          ? "border-task-border bg-task-surface-subtle text-task-muted-lighter cursor-default font-[450]"
+          : hovered
+            ? "border-task-muted-lighter bg-task-surface-subtle text-task-foreground-secondary font-[550] cursor-pointer"
+            : hasTime
+              ? "border-task-border bg-background text-task-foreground-secondary font-[550] cursor-pointer"
+              : "border-task-border bg-background text-task-muted-lightest font-[450] cursor-pointer",
+        !hasProject && !isDone && "cursor-not-allowed",
+      )}
       disabled={isDone || !hasProject}
       title={!hasProject ? "Assign a project to track time" : undefined}
-      aria-label={isDone ? `Tracked time: ${h}h ${m}m` : "Start timer"}
+      aria-label={isDone ? `Tracked time: ${display}` : "Start timer"}
     >
       {!isDone && (
-        <span className="flex w-3 h-3">
-          <UiIcon type="play" size={12} color={hovered ? "#374151" : hasTime ? "#6b7280" : "#c2c7ce"} />
-        </span>
+        <Play
+          size={12}
+          className={cn(
+            hovered
+              ? "text-task-foreground-secondary"
+              : hasTime
+                ? "text-task-muted"
+                : "text-task-muted-lightest",
+          )}
+        />
       )}
-      {isDone && <UiIcon type="clock" size={11} color="#b0b5bd" />}
+      {isDone && <Clock size={11} className="text-task-muted-lighter" />}
       <span>{display}</span>
     </button>
   )
@@ -199,11 +198,10 @@ function RunningTimerDisplay({ startedAt }: { startedAt: number }) {
 
   return (
     <div
-      className="flex items-center gap-1.5 py-1 px-3 bg-[#fdf5f4] rounded-lg border border-[#e8c8c5] text-xs font-semibold text-[#c25852]"
-      style={{ animation: "timerPulse 2s ease-in-out infinite" }}
+      className="flex items-center gap-1.5 py-1 px-3 bg-task-timer-bg rounded-lg border border-task-timer-border text-xs font-semibold text-task-timer animate-[timerPulse_2s_ease-in-out_infinite]"
       role="status"
     >
-      <span className="w-1.5 h-1.5 rounded-full bg-[#c25852]" style={{ animation: "unreadPulse 1s ease infinite" }} />
+      <span className="w-1.5 h-1.5 rounded-full bg-task-timer animate-[unreadPulse_1s_ease_infinite]" />
       {elapsed}
     </div>
   )

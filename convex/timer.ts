@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { internal } from "./_generated/api";
 import { requireAuth, isAdmin } from "./lib/permissions";
+import { logActivity } from "./lib/activityLogger";
 
 const MAX_TIMER_MINUTES = 16 * 60; // 16 hours
 
@@ -76,7 +76,7 @@ export const start = mutation({
           method: "timer",
         });
 
-        await ctx.runMutation(internal.activityLog.log, {
+        await logActivity(ctx, {
           taskId: user.timerTaskId,
           userId: user._id,
           action: `stopped timer (${elapsedMinutes}m)`,
@@ -90,7 +90,7 @@ export const start = mutation({
       timerStartedAt: Date.now(),
     });
 
-    await ctx.runMutation(internal.activityLog.log, {
+    await logActivity(ctx, {
       taskId,
       userId: user._id,
       action: "started timer",
@@ -139,7 +139,7 @@ export const stop = mutation({
       method: "timer",
     });
 
-    await ctx.runMutation(internal.activityLog.log, {
+    await logActivity(ctx, {
       taskId,
       userId: user._id,
       action: `stopped timer (${elapsedMinutes}m)`,
@@ -158,9 +158,17 @@ export const discard = mutation({
       throw new Error("No timer running");
     }
 
+    const taskId = user.timerTaskId;
+
     await ctx.db.patch(user._id, {
       timerTaskId: undefined,
       timerStartedAt: undefined,
+    });
+
+    await logActivity(ctx, {
+      taskId,
+      userId: user._id,
+      action: "discarded timer",
     });
   },
 });

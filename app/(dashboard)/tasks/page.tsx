@@ -1,19 +1,21 @@
 "use client"
 
-import { useState, useCallback, useMemo, useEffect, useRef, Suspense } from "react"
+import { useState, useCallback, useMemo, useEffect, useRef, Suspense, memo } from "react"
 import { useQuery, useMutation } from "convex/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { api } from "@/convex/_generated/api"
 import { Id } from "@/convex/_generated/dataModel"
+import { Search, X } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { TaskDetailDialog } from "@/components/task-detail-dialog"
 import { TaskFilterBarV2 } from "@/components/task-filter-bar-v2"
 import { TaskGroupSection } from "@/components/task-group-section"
-import { TaskBulkBar } from "@/components/task-bulk-bar"
 import { RunningTimerIndicator } from "@/components/task-timer-pill"
-import { UiIcon } from "@/components/icons/ui-icons"
 import { StatusIcon } from "@/components/icons/status-icons"
 import { STATUS_CONFIG, STATUS_ORDER, type TaskStatusKey } from "@/lib/task-config"
+import { cn } from "@/lib/utils"
 import {
   useTaskFiltersV2,
   applyFiltersAndSort,
@@ -24,7 +26,7 @@ import type { EnrichedTask } from "@/lib/types"
 function TasksPageInner() {
   const me = useQuery(api.users.getMe)
   const [cursor, setCursor] = useState<string | undefined>(undefined)
-  const [allPages, setAllPages] = useState<any[][]>([])
+  const [allPages, setAllPages] = useState<EnrichedTask[][]>([])
 
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -36,7 +38,7 @@ function TasksPageInner() {
   const filterState = useTaskFiltersV2()
   const isAdmin = me?.role === "admin"
 
-  // First page — no server-side filters, we filter client-side
+  // First page
   const firstPage = useQuery(api.tasks.list, me ? {} : "skip")
 
   // Additional pages (loaded on demand via cursor)
@@ -45,15 +47,23 @@ function TasksPageInner() {
     cursor ? { paginationOpts: { cursor } } : "skip",
   )
 
-  // Merge all pages
+  // Merge all pages — deduplicate by _id
   const allTasks = useMemo(() => {
     if (!firstPage) return undefined
-    const tasks = [...firstPage.page] as EnrichedTask[]
-    for (const page of allPages) {
-      tasks.push(...page)
+    const seen = new Set<string>()
+    const tasks: EnrichedTask[] = []
+    const addUnique = (page: EnrichedTask[]) => {
+      for (const t of page) {
+        if (!seen.has(t._id)) {
+          seen.add(t._id)
+          tasks.push(t)
+        }
+      }
     }
+    addUnique(firstPage.page as EnrichedTask[])
+    for (const page of allPages) addUnique(page)
     if (nextPage && cursor && !allPages.some((p) => p === nextPage.page)) {
-      tasks.push(...(nextPage.page as EnrichedTask[]))
+      addUnique(nextPage.page as EnrichedTask[])
     }
     return tasks
   }, [firstPage, allPages, nextPage, cursor])
@@ -61,13 +71,13 @@ function TasksPageInner() {
   const hasMore = nextPage ? !nextPage.isDone : firstPage ? !firstPage.isDone : false
 
   const handleLoadMore = useCallback(() => {
-    if (!firstPage || firstPage.isDone) return
+    if (!hasMore) return
     if (nextPage) {
-      setAllPages((prev) => [...prev, nextPage.page])
+      setAllPages((prev) => [...prev, nextPage.page as EnrichedTask[]])
     }
-    const continueCursor = nextPage?.continueCursor ?? firstPage.continueCursor
+    const continueCursor = nextPage?.continueCursor ?? firstPage?.continueCursor
     setCursor(continueCursor || undefined)
-  }, [firstPage, nextPage])
+  }, [hasMore, firstPage, nextPage])
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -99,12 +109,11 @@ function TasksPageInner() {
 
   // Open task detail
   const handleOpenTask = useCallback(
-    (taskId: string) => {
+    (taskId: Id<"tasks">) => {
       const params = new URLSearchParams(searchParams.toString())
       params.set("task", taskId)
       router.push(`?${params.toString()}`, { scroll: false })
-      // Record view
-      recordView({ taskId: taskId as Id<"tasks"> }).catch(() => {})
+      recordView({ taskId }).catch(() => {})
     },
     [router, searchParams, recordView],
   )
@@ -124,9 +133,8 @@ function TasksPageInner() {
       searchQuery: filterState.searchQuery,
       filters: filterState.filters,
       filterMode: filterState.filterMode,
-      groupBy: filterState.groupBy,
     })
-  }, [allTasks, filterState.activeTab, filterState.searchQuery, filterState.filters, filterState.filterMode, filterState.groupBy])
+  }, [allTasks, filterState.activeTab, filterState.searchQuery, filterState.filters, filterState.filterMode])
 
   // Grouped tasks
   const grouped = useMemo(
@@ -145,7 +153,10 @@ function TasksPageInner() {
   }, [allTasks])
 
   const totalCount = allTasks?.length ?? 0
-  const activeCount = allTasks?.filter((t) => t.status !== "done").length ?? 0
+  const activeCount = useMemo(
+    () => allTasks?.filter((t) => t.status !== "done").length ?? 0,
+    [allTasks],
+  )
 
   const [searchFocused, setSearchFocused] = useState(false)
 
@@ -160,46 +171,49 @@ function TasksPageInner() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden -m-4 md:-m-6">
+    <div className="flex flex-col h-full overflow-hidden -m-4">
       {/* Header row */}
-      <div className="px-3 md:px-5 pt-4 pb-3 bg-white flex items-center justify-between">
-        <h1 className="text-[19px] font-bold text-[#111827] m-0 tracking-[-0.025em]">
+      <div className="px-4 pt-4 pb-3 bg-background flex items-center justify-between">
+        <h1 className="text-lg font-bold text-task-foreground m-0 tracking-tight">
           All Tasks
         </h1>
         <div className="flex items-center gap-2">
           <RunningTimerIndicator />
           {/* Search */}
           <div
-            className="flex items-center rounded-[7px] px-2 gap-[5px] transition-all duration-150 min-w-[160px] max-w-[220px]"
-            style={{
-              background: searchFocused ? "#fff" : "#f3f4f6",
-              border: "1px solid",
-              borderColor: searchFocused ? "#6366f1" : "transparent",
-              boxShadow: searchFocused ? "0 0 0 3px rgba(99,102,241,0.08)" : "none",
-            }}
+            className={cn(
+              "flex items-center rounded-md px-2 gap-1.5 transition-all duration-150 min-w-[160px] max-w-[220px] border",
+              searchFocused
+                ? "bg-background border-ring shadow-[0_0_0_3px_rgba(99,102,241,0.08)]"
+                : "bg-task-surface border-transparent",
+            )}
           >
-            <UiIcon type="search" size={13} color="#9ca3af" />
-            <input
+            <Search size={13} className="text-task-muted-light shrink-0" />
+            <Input
               ref={searchRef}
               value={filterState.searchQuery}
               onChange={(e) => filterState.setSearchQuery(e.target.value)}
               onFocus={() => setSearchFocused(true)}
               onBlur={() => setSearchFocused(false)}
               placeholder="Search\u2026"
-              className="border-none outline-none flex-1 py-[5px] px-0 text-[12.5px] font-inherit bg-transparent text-[#111827] w-[100px] placeholder:text-[#9ca3af]"
+              aria-label="Search tasks"
+              className="border-none shadow-none outline-none flex-1 py-1.5 px-0 text-xs font-inherit bg-transparent text-task-foreground h-auto rounded-none focus-visible:ring-0 placeholder:text-task-muted-light"
             />
             {!searchFocused && !filterState.searchQuery && (
-              <span className="text-[10px] text-[#b0b5bd] bg-[#e5e7eb] rounded-[3px] px-1 font-semibold font-mono leading-[15px]">
+              <span className="text-[10px] text-task-muted-lighter bg-task-border rounded px-1 font-semibold font-mono leading-4">
                 \u2318K
               </span>
             )}
             {filterState.searchQuery && (
-              <button
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => filterState.setSearchQuery("")}
-                className="bg-none border-none cursor-pointer p-0.5 text-[#9ca3af] flex"
+                aria-label="Clear search"
+                className="h-5 w-5 text-task-muted-light"
               >
-                <UiIcon type="x" size={11} />
-              </button>
+                <X size={11} />
+              </Button>
             )}
           </div>
         </div>
@@ -231,17 +245,14 @@ function TasksPageInner() {
 
       {/* Content */}
       <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 overflow-y-auto min-w-0 task-list-scroll">
+        <div className="flex-1 overflow-y-auto min-w-0 task-list-scroll" role="list">
           {/* Bulk action bar */}
           {selectedIds.size > 0 && (
-            <div
-              className="flex items-center gap-2 px-3.5 py-2 bg-[#f6f7f8] border-b border-[#e5e7eb] sticky top-0 z-20"
-              style={{ animation: "popIn 0.12s ease" }}
-            >
-              <span className="text-[12.5px] font-semibold text-[#374151]">
+            <div className="flex items-center gap-2 px-4 py-2 bg-task-surface-subtle border-b border-task-border sticky top-0 z-20 animate-in fade-in-0 zoom-in-95 duration-100" role="listitem">
+              <span className="text-xs font-semibold text-task-foreground-secondary">
                 {selectedIds.size} selected
               </span>
-              <span className="text-[#d1d5db]">|</span>
+              <span className="text-task-separator">|</span>
               {STATUS_ORDER.map((key) => {
                 const cfg = STATUS_CONFIG[key]
                 return (
@@ -255,12 +266,14 @@ function TasksPageInner() {
                 )
               })}
               <span className="flex-1" />
-              <button
+              <Button
+                variant="ghost"
+                size="xs"
                 onClick={clearSelection}
-                className="py-1 px-2.5 rounded-[5px] border-none bg-transparent text-[11.5px] font-medium text-[#6b7280] cursor-pointer font-inherit"
+                className="text-xs font-medium text-task-muted"
               >
                 Clear
-              </button>
+              </Button>
             </div>
           )}
 
@@ -283,26 +296,30 @@ function TasksPageInner() {
                   selectedIds={selectedIds}
                   onToggleSelect={toggleSelect}
                   onOpenTask={handleOpenTask}
-                  groupBy={filterState.groupBy}
                 />
               ))}
 
               {filteredTasks.length === 0 && (
-                <div className="py-16 px-5 text-center text-[#9ca3af]">
-                  <div className="text-[28px] mb-2 opacity-60">&check;</div>
-                  <div className="text-[15px] font-[550] text-[#6b7280]">All clear</div>
-                  <div className="text-[13px] mt-1">No tasks match your current filters.</div>
+                <div className="py-16 px-5 text-center text-task-muted-light">
+                  <div className="text-3xl mb-2 opacity-60">&check;</div>
+                  <div className="text-sm font-semibold text-task-muted">All clear</div>
+                  <div className="text-xs mt-1">
+                    {hasMore
+                      ? "No matching tasks in loaded results. Load more to find additional matches."
+                      : "No tasks match your current filters."}
+                  </div>
                 </div>
               )}
 
               {hasMore && (
                 <div className="py-4 text-center">
-                  <button
+                  <Button
+                    variant="link"
                     onClick={handleLoadMore}
-                    className="text-sm text-[#6b7280] hover:text-[#374151] cursor-pointer bg-transparent border-none font-inherit"
+                    className="text-sm text-task-muted hover:text-task-foreground-secondary"
                   >
                     Load more tasks...
-                  </button>
+                  </Button>
                 </div>
               )}
             </>
@@ -324,7 +341,7 @@ function TasksPageInner() {
 
 // ── Bulk Status Button ────────────────────────────────────────────────
 
-function BulkStatusButton({
+const BulkStatusButton = memo(function BulkStatusButton({
   statusKey,
   cfg,
   selectedIds,
@@ -344,24 +361,24 @@ function BulkStatusButton({
         status: statusKey,
       })
       onClearSelection()
-    } catch (err: unknown) {
+    } catch {
       // toast handled by mutation
     }
   }, [statusKey, selectedIds, bulkUpdateStatus, onClearSelection])
 
   return (
-    <button
+    <Button
+      variant="ghost"
+      size="xs"
       onClick={handleClick}
-      className="flex items-center gap-1 py-1 px-2 rounded-[5px] border-none bg-transparent text-[11.5px] font-medium text-[#374151] cursor-pointer font-inherit transition-colors"
-      style={{ ["--hover-bg" as string]: cfg.bg }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = cfg.bg }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent" }}
+      className="text-xs font-medium text-task-foreground-secondary gap-1 hover:bg-[var(--hover-bg)]"
+      style={{ "--hover-bg": cfg.bg } as React.CSSProperties}
     >
       <StatusIcon status={statusKey} size={12} />
       {cfg.label}
-    </button>
+    </Button>
   )
-}
+})
 
 export default function TasksPage() {
   return (

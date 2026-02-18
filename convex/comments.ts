@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { internal } from "./_generated/api";
 import { requireAuth, isAdmin } from "./lib/permissions";
+import { logActivity } from "./lib/activityLogger";
 
 export const list = query({
   args: {
@@ -71,7 +71,7 @@ export const create = mutation({
       });
     }
 
-    await ctx.runMutation(internal.activityLog.log, {
+    await logActivity(ctx, {
       taskId, userId: user._id, action: "added a comment",
     });
 
@@ -87,7 +87,7 @@ export const remove = mutation({
     if (!comment) throw new Error("Comment not found");
     if (comment.userId !== user._id && !isAdmin(user)) throw new Error("Access denied");
 
-    await ctx.runMutation(internal.activityLog.log, {
+    await logActivity(ctx, {
       taskId: comment.taskId, userId: user._id, action: "deleted a comment",
     });
 

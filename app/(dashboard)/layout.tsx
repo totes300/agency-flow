@@ -11,7 +11,7 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { SearchIcon } from "lucide-react"
-import { useState } from "react"
+import { Suspense, useState } from "react"
 import { TimerTickProvider } from "@/hooks/use-timer-tick"
 import { FloatingTimerWidget } from "@/components/timer-indicator"
 
@@ -70,11 +70,13 @@ export default function DashboardLayout({
                 </Button>
               </div>
             </header>
-            <main id="main-content" className="flex flex-1 flex-col gap-4 p-4">
+            <main id="main-content" className="flex flex-1 flex-col gap-4 p-4 overflow-auto min-h-0">
               {children}
             </main>
           </SidebarInset>
-          <FloatingTimerWidget />
+          <Suspense fallback={null}>
+            <FloatingTimerWidget />
+          </Suspense>
           <CommandSearch open={searchOpen} onOpenChange={setSearchOpen} />
         </SidebarProvider>
       </TimerTickProvider>

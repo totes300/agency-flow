@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { internal } from "./_generated/api";
 import { requireAuth, isAdmin } from "./lib/permissions";
+import { logActivity } from "./lib/activityLogger";
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -126,7 +126,7 @@ export const create = mutation({
     });
 
     // Log activity
-    await ctx.runMutation(internal.activityLog.log, {
+    await logActivity(ctx, {
       taskId,
       userId: user._id,
       action: `logged ${durationMinutes}m`,
@@ -183,13 +183,31 @@ export const update = mutation({
 
     await ctx.db.patch(id, patch);
 
-    // Log activity
+    // Log activity for each changed field
     if (updates.durationMinutes !== undefined && updates.durationMinutes !== entry.durationMinutes) {
-      await ctx.runMutation(internal.activityLog.log, {
+      await logActivity(ctx, {
         taskId: entry.taskId,
         userId: user._id,
         action: `edited time entry: ${entry.durationMinutes}m → ${updates.durationMinutes}m`,
       });
+    }
+    if (updates.date !== undefined && updates.date !== entry.date) {
+      await logActivity(ctx, {
+        taskId: entry.taskId,
+        userId: user._id,
+        action: `edited time entry date: ${entry.date} → ${updates.date}`,
+      });
+    }
+    if (updates.note !== undefined) {
+      const oldNote = entry.note ?? "";
+      const newNote = updates.note === null ? "" : (updates.note.trim() || "");
+      if (oldNote !== newNote) {
+        await logActivity(ctx, {
+          taskId: entry.taskId,
+          userId: user._id,
+          action: newNote ? "edited time entry note" : "removed time entry note",
+        });
+      }
     }
   },
 });
@@ -211,7 +229,7 @@ export const remove = mutation({
     }
 
     // Log activity before deletion
-    await ctx.runMutation(internal.activityLog.log, {
+    await logActivity(ctx, {
       taskId: entry.taskId,
       userId: user._id,
       action: `deleted ${entry.durationMinutes}m time entry`,

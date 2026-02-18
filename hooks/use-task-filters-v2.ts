@@ -1,14 +1,13 @@
 "use client"
 
-import { useState, useCallback, useMemo } from "react"
+import { useState, useCallback, useRef } from "react"
 import {
   STATUS_CONFIG,
   STATUS_ORDER,
   DATE_PRESETS,
-  DATE_OPERATORS,
   FILTER_DEFS,
   type TaskStatusKey,
-  type DateOperator,
+  type FilterProperty,
 } from "@/lib/task-config"
 import type { EnrichedTask } from "@/lib/types"
 
@@ -16,7 +15,7 @@ import type { EnrichedTask } from "@/lib/types"
 
 export type Filter = {
   id: string
-  property: string
+  property: FilterProperty
   operator: "is" | "is not" | "before" | "after"
   values: string[]
 }
@@ -37,6 +36,8 @@ export type TaskFilterStateV2 = {
 
 // ── Hook ────────────────────────────────────────────────────────────────
 
+let nextFilterId = 0
+
 export function useTaskFiltersV2() {
   const [filters, setFilters] = useState<Filter[]>([])
   const [filterMode, setFilterMode] = useState<FilterMode>("all")
@@ -45,9 +46,10 @@ export function useTaskFiltersV2() {
   const [searchQuery, setSearchQuery] = useState("")
   const [filterMenuOpen, setFilterMenuOpen] = useState(false)
   const [filterEditId, setFilterEditId] = useState<string | null>(null)
+  const idCounterRef = useRef(nextFilterId)
 
-  const addFilter = useCallback((property: string) => {
-    const id = String(Date.now())
+  const addFilter = useCallback((property: FilterProperty) => {
+    const id = `filter-${++idCounterRef.current}`
     setFilters((prev) => [...prev, { id, property, operator: "is", values: [] }])
     setFilterEditId(id)
   }, [])
@@ -57,10 +59,7 @@ export function useTaskFiltersV2() {
   }, [])
 
   const removeFilter = useCallback((id: string) => {
-    setFilters((prev) => {
-      const next = prev.filter((f) => f.id !== id)
-      return next
-    })
+    setFilters((prev) => prev.filter((f) => f.id !== id))
     setFilterEditId(null)
   }, [])
 
@@ -121,10 +120,9 @@ export function applyFiltersAndSort(
     searchQuery: string
     filters: Filter[]
     filterMode: FilterMode
-    groupBy: GroupByV2
   },
 ): EnrichedTask[] {
-  let filtered = [...tasks]
+  let filtered = tasks
 
   // Tab filter
   if (state.activeTab === "active") {
@@ -168,15 +166,18 @@ export function applyFiltersAndSort(
           if (f.operator === "after") return taskDate > range[1]
           return true
         }
-        // Select filters
+        // Select filters — assignee checks ALL assignees, not just the first
+        if (f.property === "assignee") {
+          const names = task.assignees?.map((a) => a.name).filter(Boolean) ?? []
+          const match = names.some((name) => f.values.includes(name))
+          return f.operator === "is" ? match : !match
+        }
         const taskVal =
           f.property === "status"
             ? task.status
-            : f.property === "assignee"
-              ? (task.assignees?.[0] && "name" in task.assignees[0] ? (task.assignees[0] as { name: string }).name : "")
-              : f.property === "client"
-                ? (task.clientName ?? "")
-                : (task.workCategoryName ?? "")
+            : f.property === "client"
+              ? (task.clientName ?? "")
+              : (task.workCategoryName ?? "")
         const match = f.values.includes(taskVal)
         return f.operator === "is" ? match : !match
       })
@@ -185,14 +186,15 @@ export function applyFiltersAndSort(
   }
 
   // Sort by status order, then by _creationTime desc
-  filtered.sort((a, b) => {
-    const sa = STATUS_CONFIG[a.status as TaskStatusKey]?.sortOrder ?? 5
-    const sb = STATUS_CONFIG[b.status as TaskStatusKey]?.sortOrder ?? 5
+  const sorted = [...filtered]
+  sorted.sort((a, b) => {
+    const sa = STATUS_CONFIG[a.status]?.sortOrder ?? 5
+    const sb = STATUS_CONFIG[b.status]?.sortOrder ?? 5
     if (sa !== sb) return sa - sb
     return b._creationTime - a._creationTime
   })
 
-  return filtered
+  return sorted
 }
 
 // ── Grouping ────────────────────────────────────────────────────────────
@@ -209,7 +211,7 @@ export function groupTasks(tasks: EnrichedTask[], groupBy: GroupByV2): TaskGroup
   if (groupBy === "status") {
     const map = new Map<string, { label: string; tasks: EnrichedTask[] }>()
     for (const t of tasks) {
-      const cfg = STATUS_CONFIG[t.status as TaskStatusKey]
+      const cfg = STATUS_CONFIG[t.status]
       if (!map.has(t.status)) map.set(t.status, { label: cfg?.label ?? t.status, tasks: [] })
       map.get(t.status)!.tasks.push(t)
     }

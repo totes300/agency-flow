@@ -151,7 +151,9 @@ export default defineSchema({
     userId: v.id("users"),
     viewedAt: v.number(),
   })
-    .index("by_taskId_userId", ["taskId", "userId"]),
+    .index("by_taskId_userId", ["taskId", "userId"])
+    .index("by_taskId", ["taskId"])
+    .index("by_userId", ["userId"]),
 
   // ── Time Entries ───────────────────────────────────────────────────
   timeEntries: defineTable({

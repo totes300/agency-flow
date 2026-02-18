@@ -18,8 +18,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body className="antialiased">
+    <html lang="en" className={`${inter.variable} h-full`}>
+      <body className="antialiased h-full overflow-hidden">
         <ClerkProvider>
           <ConvexClientProvider>
             {children}

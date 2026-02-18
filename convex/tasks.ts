@@ -1,9 +1,9 @@
 import { v } from "convex/values";
 import { mutation, query, MutationCtx } from "./_generated/server";
-import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
 import { requireAdmin, requireAuth, isAdmin } from "./lib/permissions";
 import { stopUserTimer } from "./lib/timerHelpers";
+import { logActivity, trackFieldChanges } from "./lib/activityLogger";
 import { taskStatus } from "./schema";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -17,7 +17,7 @@ async function hasTimeEntries(ctx: MutationCtx, taskId: Doc<"tasks">["_id"]): Pr
   return entry !== null;
 }
 
-/** Delete all related records for a task (comments, attachments, activity log). */
+/** Delete all related records for a task (comments, attachments, activity log, views). */
 async function deleteTaskRelated(ctx: MutationCtx, taskId: Doc<"tasks">["_id"]) {
   const comments = await ctx.db
     .query("comments")
@@ -36,6 +36,13 @@ async function deleteTaskRelated(ctx: MutationCtx, taskId: Doc<"tasks">["_id"]) 
     .withIndex("by_taskId", (q) => q.eq("taskId", taskId))
     .collect();
   for (const l of logs) await ctx.db.delete(l._id);
+
+  // Clean up task views
+  const views = await ctx.db
+    .query("taskViews")
+    .withIndex("by_taskId", (q) => q.eq("taskId", taskId))
+    .collect();
+  for (const v of views) await ctx.db.delete(v._id);
 }
 
 // ── Queries ──────────────────────────────────────────────────────────────
@@ -75,7 +82,7 @@ export const get = query({
     // Assignees
     const assignees = await Promise.all(
       task.assigneeIds.map(async (uid) => {
-        const u = await ctx.db.query("users").filter((q) => q.eq(q.field("_id"), uid)).first();
+        const u = await ctx.db.get(uid);
         return u ? { _id: u._id, name: u.name, avatarUrl: u.avatarUrl } : null;
       }),
     );
@@ -93,7 +100,7 @@ export const get = query({
       .withIndex("by_taskId", (q) => q.eq("taskId", id))
       .collect();
     const totalMinutes = timeEntries.reduce(
-      (sum: number, e: any) => sum + e.durationMinutes,
+      (sum, e) => sum + e.durationMinutes,
       0,
     );
 
@@ -116,7 +123,7 @@ export const get = query({
         .withIndex("by_taskId", (q) => q.eq("taskId", st._id))
         .collect();
       subtaskTotalMinutes += stEntries.reduce(
-        (sum: number, e: any) => sum + e.durationMinutes,
+        (sum, e) => sum + e.durationMinutes,
         0,
       );
     }
@@ -191,29 +198,28 @@ export const list = query({
     const admin = isAdmin(user);
     const filters = args.filters;
 
-    // Collect all tasks (we filter in memory for complex conditions)
-    let allTasks = await ctx.db.query("tasks").collect();
+    // Use index-based query for better performance (filter non-archived first)
+    let allTasks: Doc<"tasks">[];
+    if (!args.includeArchived) {
+      allTasks = await ctx.db
+        .query("tasks")
+        .withIndex("by_isArchived", (q) => q.eq("isArchived", false))
+        .collect();
+    } else {
+      allTasks = await ctx.db.query("tasks").collect();
+    }
 
     // Exclude subtasks from main list (constraint #7)
     allTasks = allTasks.filter((t) => !t.parentTaskId);
-
-    // Exclude archived by default
-    if (!args.includeArchived) {
-      allTasks = allTasks.filter((t) => !t.isArchived);
-    }
 
     // Role scoping: member sees only assigned tasks
     if (!admin) {
       allTasks = allTasks.filter((t) => t.assigneeIds.includes(user._id));
     }
 
-    // Build project→client lookup if needed
-    let projectMap = new Map<string, any>();
-    if (filters?.clientId || filters?.projectId || true) {
-      // Always need project data for enrichment
-      const projects = await ctx.db.query("projects").collect();
-      projectMap = new Map(projects.map((p) => [p._id, p]));
-    }
+    // Build project→client lookup (always needed for enrichment)
+    const projects = await ctx.db.query("projects").collect();
+    const projectMap = new Map(projects.map((p) => [p._id, p]));
 
     // Apply filters
     if (filters?.clientId) {
@@ -292,10 +298,10 @@ export const list = query({
     }
 
     // Per-task indexed lookups for subtasks, comments, time entries, activity (max 50 tasks)
-    const subtasksByParent = new Map<string, typeof page>();
-    const commentsByTask = new Map<string, any[]>();
+    const subtasksByParent = new Map<string, Doc<"tasks">[]>();
+    const commentsByTask = new Map<string, Doc<"comments">[]>();
     const minutesByTask = new Map<string, number>();
-    const latestActivityByTask = new Map<string, any[]>();
+    const latestActivityByTask = new Map<string, Doc<"activityLogEntries">[]>();
 
     for (const task of page) {
       // Subtasks via index
@@ -326,14 +332,14 @@ export const list = query({
         minutesByTask.set(task._id, totalMin);
       }
 
-      // Activity log (last 5 entries) via index
+      // Activity log — use .order("desc").take(5) instead of .collect() + sort + slice
       const activityEntries = await ctx.db
         .query("activityLogEntries")
         .withIndex("by_taskId", (q) => q.eq("taskId", task._id))
-        .collect();
-      activityEntries.sort((a, b) => b._creationTime - a._creationTime);
+        .order("desc")
+        .take(5);
       if (activityEntries.length > 0) {
-        latestActivityByTask.set(task._id, activityEntries.slice(0, 5));
+        latestActivityByTask.set(task._id, activityEntries);
       }
     }
 
@@ -349,7 +355,7 @@ export const list = query({
             ? { _id: u._id, name: u.name, avatarUrl: u.avatarUrl }
             : null;
         })
-        .filter(Boolean);
+        .filter((a): a is NonNullable<typeof a> => a !== null);
 
       const category = task.workCategoryId
         ? categoryMap.get(task.workCategoryId)
@@ -357,28 +363,28 @@ export const list = query({
 
       const subtasks = subtasksByParent.get(task._id) ?? [];
       const completedSubtaskCount = subtasks.filter(
-        (s: any) => s.status === "done",
+        (s) => s.status === "done",
       ).length;
 
       const comments = commentsByTask.get(task._id) ?? [];
       // Sort comments by _creationTime descending for latest
-      comments.sort((a: any, b: any) => b._creationTime - a._creationTime);
-      const latestComment = comments[0]
+      const sortedComments = [...comments].sort((a, b) => b._creationTime - a._creationTime);
+      const latestComment = sortedComments[0]
         ? (() => {
-            const commentUser = userMap.get(comments[0].userId);
+            const commentUser = userMap.get(sortedComments[0].userId);
             return {
               userName: commentUser?.name ?? "Unknown",
               avatarUrl: commentUser?.avatarUrl,
-              content: typeof comments[0].content === "string"
-                ? comments[0].content.slice(0, 200)
+              content: typeof sortedComments[0].content === "string"
+                ? sortedComments[0].content.slice(0, 200)
                 : "Comment",
-              _creationTime: comments[0]._creationTime,
+              _creationTime: sortedComments[0]._creationTime,
             };
           })()
         : undefined;
 
       // Subtask preview (first 5)
-      const subtaskPreview = subtasks.slice(0, 5).map((s: any) => ({
+      const subtaskPreview = subtasks.slice(0, 5).map((s) => ({
         _id: s._id,
         title: s.title,
         status: s.status,
@@ -388,18 +394,18 @@ export const list = query({
       let descriptionPreview: string | undefined;
       if (task.description) {
         try {
-          const extractText = (node: any): string => {
+          const extractText = (node: Record<string, unknown>): string => {
             if (typeof node === "string") return node;
             let text = "";
             if (node.text) text += node.text;
-            if (node.content) {
+            if (Array.isArray(node.content)) {
               for (const child of node.content) {
                 text += extractText(child);
               }
             }
             return text;
           };
-          const plainText = extractText(task.description);
+          const plainText = extractText(task.description as Record<string, unknown>);
           descriptionPreview = plainText.slice(0, 200) || undefined;
         } catch {
           descriptionPreview = undefined;
@@ -408,7 +414,7 @@ export const list = query({
 
       // Latest activity entries with user names
       const activityEntries = latestActivityByTask.get(task._id) ?? [];
-      const latestActivityLog = activityEntries.map((entry: any) => {
+      const latestActivityLog = activityEntries.map((entry) => {
         const actUser = userMap.get(entry.userId);
         return {
           action: entry.action,
@@ -478,7 +484,7 @@ export const getAutoAssignSuggestion = query({
     // Check project's default assignees first
     const defaultAssignees = project.defaultAssignees ?? [];
     const match = defaultAssignees.find(
-      (a: any) => a.workCategoryId === workCategoryId,
+      (a) => a.workCategoryId === workCategoryId,
     );
 
     if (match) {
@@ -553,7 +559,7 @@ export const create = mutation({
       lastEditedAt: now,
     });
 
-    await ctx.runMutation(internal.activityLog.log, {
+    await logActivity(ctx, {
       taskId,
       userId: user._id,
       action: "created task",
@@ -609,7 +615,7 @@ export const update = mutation({
       // Update recent projects for the current user
       const recentIds = user.recentProjectIds ?? [];
       const filtered = recentIds.filter(
-        (pid: any) => pid !== updates.projectId,
+        (pid) => pid !== updates.projectId,
       );
       const updated = [updates.projectId, ...filtered].slice(0, 5);
       await ctx.db.patch(user._id, { recentProjectIds: updated });
@@ -643,22 +649,36 @@ export const update = mutation({
     }
 
     patch.lastEditedAt = Date.now();
+
+    // Snapshot before for diffing
+    const before: Record<string, unknown> = {
+      title: task.title,
+      estimate: task.estimate,
+      billable: task.billable,
+      dueDate: task.dueDate,
+      workCategoryId: task.workCategoryId,
+      projectId: task.projectId,
+      assigneeIds: task.assigneeIds,
+    };
+
     await ctx.db.patch(id, patch);
 
-    if (patch.assigneeIds) {
-      await ctx.runMutation(internal.activityLog.log, {
-        taskId: id,
-        userId: user._id,
-        action: "updated assignees",
-      });
-    }
-    if (patch.projectId !== undefined) {
-      await ctx.runMutation(internal.activityLog.log, {
-        taskId: id,
-        userId: user._id,
-        action: "changed project",
-      });
-    }
+    // Build after snapshot from applied patch
+    const after: Record<string, unknown> = { ...before };
+    if (patch.title !== undefined) after.title = patch.title;
+    if (patch.estimate !== undefined) after.estimate = patch.estimate;
+    if (patch.billable !== undefined) after.billable = patch.billable;
+    if (patch.dueDate !== undefined) after.dueDate = patch.dueDate;
+    if (patch.workCategoryId !== undefined) after.workCategoryId = patch.workCategoryId;
+    if (patch.projectId !== undefined) after.projectId = patch.projectId;
+    if (patch.assigneeIds !== undefined) after.assigneeIds = patch.assigneeIds;
+
+    await trackFieldChanges(ctx, {
+      taskId: id,
+      userId: user._id,
+      before,
+      after,
+    });
   },
 });
 
@@ -687,7 +707,7 @@ export const updateStatus = mutation({
 
     await ctx.db.patch(id, { status, lastEditedAt: Date.now() });
 
-    await ctx.runMutation(internal.activityLog.log, {
+    await logActivity(ctx, {
       taskId: id,
       userId: user._id,
       action: `changed status ${task.status} → ${status}`,
@@ -711,7 +731,7 @@ export const duplicate = mutation({
     }
 
     const now = Date.now();
-    return await ctx.db.insert("tasks", {
+    const newTaskId = await ctx.db.insert("tasks", {
       title: task.title,
       description: task.description,
       projectId: task.projectId,
@@ -726,6 +746,14 @@ export const duplicate = mutation({
       lastEditedAt: now,
       // No parentTaskId — duplicates are always top-level
     });
+
+    await logActivity(ctx, {
+      taskId: newTaskId,
+      userId: user._id,
+      action: `duplicated from "${task.title.length > 60 ? task.title.slice(0, 57) + "…" : task.title}"`,
+    });
+
+    return newTaskId;
   },
 });
 
@@ -744,9 +772,9 @@ export const archive = mutation({
       throw new Error("Access denied");
     }
 
-    await ctx.db.patch(id, { isArchived: true });
+    await ctx.db.patch(id, { isArchived: true, lastEditedAt: Date.now() });
 
-    await ctx.runMutation(internal.activityLog.log, {
+    await logActivity(ctx, {
       taskId: id,
       userId: user._id,
       action: "archived task",
@@ -759,7 +787,7 @@ export const archive = mutation({
       .collect();
     for (const st of subtasks) {
       if (!st.isArchived) {
-        await ctx.db.patch(st._id, { isArchived: true });
+        await ctx.db.patch(st._id, { isArchived: true, lastEditedAt: Date.now() });
       }
     }
 
@@ -827,7 +855,7 @@ export const moveToProject = mutation({
     projectId: v.id("projects"),
   },
   handler: async (ctx, { id, projectId }) => {
-    await requireAdmin(ctx);
+    const user = await requireAdmin(ctx);
     const task = await ctx.db.get(id);
     if (!task) throw new Error("Task not found");
 
@@ -855,10 +883,16 @@ export const moveToProject = mutation({
       }
     }
 
+    // Lookup old project name for logging
+    const oldProject = task.projectId ? await ctx.db.get(task.projectId) : null;
+    const oldProjectName = oldProject?.name ?? "none";
+    const newProjectName = project.name;
+
     // Update task
     await ctx.db.patch(id, {
       projectId,
       workCategoryId: undefined, // Clear since categories may differ
+      lastEditedAt: Date.now(),
     });
 
     // Cascade to subtasks
@@ -866,8 +900,15 @@ export const moveToProject = mutation({
       await ctx.db.patch(st._id, {
         projectId,
         workCategoryId: undefined,
+        lastEditedAt: Date.now(),
       });
     }
+
+    await logActivity(ctx, {
+      taskId: id,
+      userId: user._id,
+      action: `moved to project "${newProjectName}" from "${oldProjectName}"`,
+    });
   },
 });
 
@@ -887,7 +928,7 @@ export const updateDescription = mutation({
       throw new Error("Access denied");
     }
     await ctx.db.patch(id, { description, lastEditedAt: Date.now() });
-    await ctx.runMutation(internal.activityLog.log, {
+    await logActivity(ctx, {
       taskId: id,
       userId: user._id,
       action: "edited description",
@@ -959,6 +1000,7 @@ export const bulkUpdateStatus = mutation({
       throw new Error("Admin access required to set status to Done");
     }
 
+    const now = Date.now();
     let updated = 0;
     for (const taskId of ids) {
       const task = await ctx.db.get(taskId);
@@ -967,7 +1009,15 @@ export const bulkUpdateStatus = mutation({
       // Skip tasks the user cannot access
       if (!isAdmin(user) && !task.assigneeIds.includes(user._id)) continue;
 
-      await ctx.db.patch(taskId, { status });
+      const oldStatus = task.status;
+      await ctx.db.patch(taskId, { status, lastEditedAt: now });
+      if (oldStatus !== status) {
+        await logActivity(ctx, {
+          taskId,
+          userId: user._id,
+          action: `changed status ${oldStatus} → ${status}`,
+        });
+      }
       updated++;
     }
 
@@ -990,6 +1040,7 @@ export const bulkUpdateAssignees = mutation({
       throw new Error("Maximum 50 tasks per bulk action");
     }
 
+    const now = Date.now();
     let updated = 0;
     for (const taskId of ids) {
       const task = await ctx.db.get(taskId);
@@ -998,7 +1049,12 @@ export const bulkUpdateAssignees = mutation({
       // Skip tasks the user cannot access
       if (!isAdmin(user) && !task.assigneeIds.includes(user._id)) continue;
 
-      await ctx.db.patch(taskId, { assigneeIds });
+      await ctx.db.patch(taskId, { assigneeIds, lastEditedAt: now });
+      await logActivity(ctx, {
+        taskId,
+        userId: user._id,
+        action: "updated assignees",
+      });
       updated++;
     }
 
@@ -1021,6 +1077,7 @@ export const bulkArchive = mutation({
     }
 
     const allUsers = await ctx.db.query("users").collect();
+    const now = Date.now();
     let archived = 0;
 
     for (const taskId of ids) {
@@ -1030,7 +1087,12 @@ export const bulkArchive = mutation({
       // Skip tasks the user cannot access
       if (!isAdmin(user) && !task.assigneeIds.includes(user._id)) continue;
 
-      await ctx.db.patch(taskId, { isArchived: true });
+      await ctx.db.patch(taskId, { isArchived: true, lastEditedAt: now });
+      await logActivity(ctx, {
+        taskId,
+        userId: user._id,
+        action: "archived task",
+      });
 
       // Cascade to subtasks
       const subtasks = await ctx.db
@@ -1039,7 +1101,7 @@ export const bulkArchive = mutation({
         .collect();
       for (const st of subtasks) {
         if (!st.isArchived) {
-          await ctx.db.patch(st._id, { isArchived: true });
+          await ctx.db.patch(st._id, { isArchived: true, lastEditedAt: now });
         }
       }
 
@@ -1070,6 +1132,13 @@ export const recordView = mutation({
   args: { taskId: v.id("tasks") },
   handler: async (ctx, { taskId }) => {
     const user = await requireAuth(ctx);
+
+    // Verify task exists and user has permission
+    const task = await ctx.db.get(taskId);
+    if (!task) throw new Error("Task not found");
+    if (!isAdmin(user) && !task.assigneeIds.includes(user._id)) {
+      throw new Error("Access denied");
+    }
 
     const existing = await ctx.db
       .query("taskViews")

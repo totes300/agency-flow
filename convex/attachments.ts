@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { internal } from "./_generated/api";
 import { requireAuth, isAdmin } from "./lib/permissions";
+import { logActivity } from "./lib/activityLogger";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const MAX_FILES_PER_TASK = 20;
@@ -56,7 +56,7 @@ export const create = mutation({
       taskId, storageId, fileName, mimeType, size, uploadedBy: user._id,
     });
 
-    await ctx.runMutation(internal.activityLog.log, {
+    await logActivity(ctx, {
       taskId, userId: user._id, action: `uploaded ${fileName}`,
     });
 
@@ -101,7 +101,7 @@ export const remove = mutation({
       throw new Error("Access denied");
     }
 
-    await ctx.runMutation(internal.activityLog.log, {
+    await logActivity(ctx, {
       taskId: attachment.taskId, userId: user._id, action: `deleted ${attachment.fileName}`,
     });
 

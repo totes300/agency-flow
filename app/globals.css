@@ -45,6 +45,29 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+
+  /* Task UI color tokens */
+  --color-task-foreground: var(--task-foreground);
+  --color-task-foreground-secondary: var(--task-foreground-secondary);
+  --color-task-foreground-tertiary: var(--task-foreground-tertiary);
+  --color-task-muted: var(--task-muted);
+  --color-task-muted-light: var(--task-muted-light);
+  --color-task-muted-lighter: var(--task-muted-lighter);
+  --color-task-muted-lightest: var(--task-muted-lightest);
+  --color-task-border: var(--task-border);
+  --color-task-border-light: var(--task-border-light);
+  --color-task-border-lighter: var(--task-border-lighter);
+  --color-task-surface: var(--task-surface);
+  --color-task-surface-hover: var(--task-surface-hover);
+  --color-task-surface-subtle: var(--task-surface-subtle);
+  --color-task-surface-warm: var(--task-surface-warm);
+  --color-task-surface-warm-hover: var(--task-surface-warm-hover);
+  --color-task-separator: var(--task-separator);
+  --color-task-accent: var(--task-accent);
+  --color-task-warning: var(--task-warning);
+  --color-task-timer: var(--task-timer);
+  --color-task-timer-bg: var(--task-timer-bg);
+  --color-task-timer-border: var(--task-timer-border);
 }
 
 :root {
@@ -72,6 +95,30 @@
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
   --radius: 0.625rem;
+
+  /* Task UI color tokens */
+  --task-foreground: #111827;
+  --task-foreground-secondary: #374151;
+  --task-foreground-tertiary: #4b5563;
+  --task-muted: #6b7280;
+  --task-muted-light: #9ca3af;
+  --task-muted-lighter: #b0b5bd;
+  --task-muted-lightest: #c2c7ce;
+  --task-border: #e5e7eb;
+  --task-border-light: #f0f0f0;
+  --task-border-lighter: #f3f4f6;
+  --task-surface: #f3f4f6;
+  --task-surface-hover: #f8f9fb;
+  --task-surface-subtle: #f6f7f8;
+  --task-surface-warm: #fbf7f6;
+  --task-surface-warm-hover: #f7f2f1;
+  --task-separator: #d1d5db;
+  --task-accent: #e8385d;
+  --task-warning: #d97706;
+  --task-timer: #c25852;
+  --task-timer-bg: #fdf5f4;
+  --task-timer-border: #e8c8c5;
+
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -106,6 +153,30 @@
   --chart-3: oklch(0.546 0.245 262.881);
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
+
+  /* Task UI color tokens — dark mode */
+  --task-foreground: #f3f4f6;
+  --task-foreground-secondary: #d1d5db;
+  --task-foreground-tertiary: #9ca3af;
+  --task-muted: #9ca3af;
+  --task-muted-light: #6b7280;
+  --task-muted-lighter: #4b5563;
+  --task-muted-lightest: #374151;
+  --task-border: #374151;
+  --task-border-light: #1f2937;
+  --task-border-lighter: #1f2937;
+  --task-surface: #1f2937;
+  --task-surface-hover: #283141;
+  --task-surface-subtle: #1a2332;
+  --task-surface-warm: #2a2120;
+  --task-surface-warm-hover: #352a29;
+  --task-separator: #4b5563;
+  --task-accent: #f06080;
+  --task-warning: #f59e0b;
+  --task-timer: #e07068;
+  --task-timer-bg: #2a1f1e;
+  --task-timer-border: #5c3634;
+
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
@@ -327,19 +398,9 @@
 
 /* ── Task List Animations ─────────────────────────────────────────────── */
 
-@keyframes popIn {
-  from { opacity: 0; transform: scale(0.95) translateY(-4px); }
-  to { opacity: 1; transform: none; }
-}
-
-@keyframes slideIn {
-  from { opacity: 0; transform: translateX(12px); }
-  to { opacity: 1; transform: none; }
-}
-
 @keyframes timerPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(194, 88, 82, 0); }
-  50% { box-shadow: 0 0 0 3px rgba(194, 88, 82, 0.08); }
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--task-timer) 0%, transparent); }
+  50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--task-timer) 8%, transparent); }
 }
 
 @keyframes filterSlideIn {
@@ -353,21 +414,26 @@
 }
 
 /* Task list thin scrollbar */
+.task-list-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--task-separator) transparent;
+}
+
 .task-list-scroll::-webkit-scrollbar {
   width: 5px;
 }
 
 .task-list-scroll::-webkit-scrollbar-thumb {
-  background: #d1d5db;
+  background: var(--task-separator);
   border-radius: 3px;
 }
 
 /* Hide scrollbar for tab overflow */
-.scrollbar-none::-webkit-scrollbar {
-  display: none;
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-.scrollbar-none {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }

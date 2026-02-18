@@ -1,10 +1,12 @@
 "use client"
 
+import { memo } from "react"
 import { Id } from "@/convex/_generated/dataModel"
+import { Badge } from "@/components/ui/badge"
 import { TaskRow } from "@/components/task-row"
 import { InlineAddTask } from "@/components/task-inline-add"
+import { STATUS_CONFIG, type TaskStatusKey } from "@/lib/task-config"
 import type { EnrichedTask } from "@/lib/types"
-import type { TaskStatusKey } from "@/lib/task-config"
 
 interface TaskGroupSectionProps {
   groupKey: string
@@ -13,11 +15,14 @@ interface TaskGroupSectionProps {
   isAdmin: boolean
   selectedIds: Set<string>
   onToggleSelect: (id: Id<"tasks">) => void
-  onOpenTask: (id: string) => void
-  groupBy: string
+  onOpenTask: (id: Id<"tasks">) => void
 }
 
-export function TaskGroupSection({
+function isValidStatusKey(key?: string): key is TaskStatusKey {
+  return key !== undefined && key in STATUS_CONFIG
+}
+
+export const TaskGroupSection = memo(function TaskGroupSection({
   groupKey,
   rawKey,
   tasks,
@@ -25,16 +30,18 @@ export function TaskGroupSection({
   selectedIds,
   onToggleSelect,
   onOpenTask,
-  groupBy,
 }: TaskGroupSectionProps) {
   return (
-    <div>
+    <section aria-label={groupKey || "Tasks"}>
       {groupKey && (
-        <div className="py-2 px-4 bg-[#f9fafb] border-b border-[#f0f0f0] text-xs font-[650] text-[#4b5563] flex items-center gap-1.5 sticky top-0 z-10">
+        <div className="py-2 px-4 bg-task-surface-subtle border-b border-task-border-light text-xs font-bold text-task-foreground-tertiary flex items-center gap-1.5 sticky top-0 z-10">
           {groupKey}
-          <span className="text-[10.5px] text-[#9ca3af] font-medium bg-[#e5e7eb] rounded-[10px] px-1.5 leading-4">
+          <Badge
+            variant="secondary"
+            className="h-4 min-w-[18px] px-1.5 text-[10px] font-medium bg-task-border text-task-muted-light rounded-full"
+          >
             {tasks.length}
-          </span>
+          </Badge>
         </div>
       )}
       {tasks.map((task) => (
@@ -49,8 +56,8 @@ export function TaskGroupSection({
       ))}
       <InlineAddTask
         placeholder={groupKey ? `Add task to ${groupKey}\u2026` : "Add a new task\u2026"}
-        defaultStatus={(rawKey as TaskStatusKey) ?? undefined}
+        defaultStatus={isValidStatusKey(rawKey) ? rawKey : undefined}
       />
-    </div>
+    </section>
   )
-}
+})
